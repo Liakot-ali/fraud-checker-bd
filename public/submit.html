@@ -8,56 +8,56 @@
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
     <div class="max-w-2xl mx-auto my-12 p-8 bg-white border border-slate-200 rounded-2xl shadow-sm">
-        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Submit New Incident Report</h2> [cite: 136]
-        <p class="text-slate-500 text-sm mt-1 mb-6">Submissions undergo administrative validation checkings prior to profile index publishing operations.</p> [cite: 9]
+        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Submit New Incident Report</h2>
+        <p class="text-slate-500 text-sm mt-1 mb-6">Submissions undergo administrative validation checkings prior to profile index publishing operations.</p>
 
         <form id="submissionForm" onsubmit="submitForm(event)" class="space-y-4">
             <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Target Name (Individual/Entity)*</label> [cite: 84]
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Target Name (Individual/Entity)*</label>
                 <input type="text" id="name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Target Phone Number*</label> [cite: 84]
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Target Phone Number*</label>
                     <input type="text" id="phone" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">NID / Corporate Registration ID*</label> [cite: 84]
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">NID / Corporate Registration ID*</label>
                     <input type="text" id="identifier" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Type of Scam*</label> [cite: 84]
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Type of Scam*</label>
                     <input type="text" id="scam_type" placeholder="e.g., Mobile Banking, E-Commerce" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Loss Item/Property Name*</label> [cite: 84]
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Loss Item/Property Name*</label>
                     <input type="text" id="loss_item" placeholder="e.g., Cash, Laptop" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
                 </div>
             </div>
             <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Financial Loss Amount (Optional)</label> [cite: 85]
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Financial Loss Amount (Optional)</label>
                 <input type="number" id="loss_amount" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
             </div>
             <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Detailed Scam Description*</label> [cite: 84]
+                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Detailed Scam Description*</label>
                 <textarea id="description" rows="4" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"></textarea>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Police General Diary (GD) Number</label> [cite: 85]
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Police General Diary (GD) Number</label>
                     <input type="text" id="gd_number" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Address / Location Reference</label> [cite: 85]
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Address / Location Reference</label>
                     <input type="text" id="address" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
                 </div>
             </div>
             <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <input type="checkbox" id="anon" class="rounded text-red-600 focus:ring-red-500">
-                    <label for="anon" class="text-sm text-slate-600 select-none">Anonymize tracking configuration name records</label> [cite: 86]
+                    <label for="anon" class="text-sm text-slate-600 select-none">Anonymize tracking configuration name records</label>
                 </div>
                 <button type="submit" class="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition">Transmit Report</button>
             </div>
@@ -77,11 +77,11 @@
                 description: document.getElementById('description').value,
                 gd_number: document.getElementById('gd_number').value,
                 address: document.getElementById('address').value,
-                reporter_name: document.getElementById('anon').checked ? 'Anonymous' : 'Public Submitter', [cite: 86, 108]
-                reporter_visibility: document.getElementById('anon').checked ? 'hidden' : 'public' [cite: 86]
+                reporter_name: document.getElementById('anon').checked ? 'Anonymous' : 'Public Submitter',
+                reporter_visibility: document.getElementById('anon').checked ? 'hidden' : 'public'
             };
 
-            const res = await fetch('/api/events', { [cite: 142]
+            const res = await fetch('/api/events', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

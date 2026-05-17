@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize Relational SQLite Database [cite: 56, 114]
+// Initialize Relational SQLite Database
 const db = new sqlite3.Database(':memory:', (err) => {
     if (err) console.error(err.message);
     console.log('Connected to the in-memory SQLite database.');
@@ -15,7 +15,7 @@ const db = new sqlite3.Database(':memory:', (err) => {
 });
 
 function initializeDatabase() {
-    // 5.2 Proposed Database Model Tables [cite: 115]
+    // 5.2 Proposed Database Model Tables
     db.serialize(() => {
         db.run(`CREATE TABLE cheater_profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +71,7 @@ function initializeDatabase() {
             created_at TEXT
         )`);
 
-        // Seed default Admin user for testing [cite: 123]
+        // Seed default Admin user for testing
         db.run(`CREATE TABLE admin_users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT,
@@ -83,12 +83,12 @@ function initializeDatabase() {
     });
 }
 
-// Helper: Text Normalization [cite: 125]
+// Helper: Text Normalization
 const normalize = (text) => text ? text.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
-// --- PUBLIC API INTERFACES --- [cite: 139]
+// --- PUBLIC API INTERFACES ---
 
-// GET /search?q=... Public Search Engine [cite: 140]
+// GET /search?q=... Public Search Engine
 app.get('/api/search', (req, requireRes) => {
     const query = req.query.q || '';
     const normQuery = normalize(query);
@@ -107,7 +107,7 @@ app.get('/api/search', (req, requireRes) => {
     });
 });
 
-// GET /profiles/{id} Fetch Public Profile Details [cite: 141]
+// GET /profiles/{id} Fetch Public Profile Details
 app.get('/api/profiles/:id', (req, res) => {
     const profileId = req.params.id;
     
@@ -122,11 +122,11 @@ app.get('/api/profiles/:id', (req, res) => {
     });
 });
 
-// POST /events Submit Fraud Event (No Login Required) [cite: 14, 142]
+// POST /events Submit Fraud Event (No Login Required)
 app.post('/api/events', (req, res) => {
     const { name, phone, identifier, scam_type, loss_item, loss_amount, description, gd_number, address, reporter_name, reporter_visibility } = req.body;
     
-    // Mandatory Validation Guardrails [cite: 84]
+    // Mandatory Validation Guardrails
     if (!name || !phone || !identifier || !scam_type || !loss_item || !description) {
         return res.status(400).json({ error: "Missing required functional tracking parameters." });
     }
@@ -145,9 +145,9 @@ app.post('/api/events', (req, res) => {
     });
 });
 
-// --- SECURE ADMINISTRATIVE OPERATIONS --- [cite: 29]
+// --- SECURE ADMINISTRATIVE OPERATIONS ---
 
-// POST /admin/login Authentication [cite: 143]
+// POST /admin/login Authentication
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     db.get(`SELECT * FROM admin_users WHERE username = ? AND password_hash = ?`, [username, password], (err, row) => {
@@ -156,14 +156,14 @@ app.post('/api/admin/login', (req, res) => {
     });
 });
 
-// GET /admin/moderation-queue [cite: 144]
+// GET /admin/moderation-queue
 app.get('/api/admin/moderation-queue', (req, res) => {
     db.all(`SELECT * FROM fraud_events WHERE status = 'pending'`, [], (err, rows) => {
         res.json(rows);
     });
 });
 
-// PATCH /admin/events/{id}/action [cite: 145]
+// PATCH /admin/events/{id}/action
 app.patch('/api/admin/events/:id/:action', (req, res) => {
     const { id, action } = req.params;
     const allowedActions = ['approve', 'reject'];
@@ -176,18 +176,18 @@ app.patch('/api/admin/events/:id/:action', (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
 
         if (status === 'approved') {
-            // High Confidence Profile Identifier Merge Logic Pipeline [cite: 91]
+            // High Confidence Profile Identifier Merge Logic Pipeline
             db.get(`SELECT * FROM fraud_events WHERE id = ?`, [id], (err, event) => {
                 db.get(`SELECT phone_number FROM event_phones WHERE event_id = ?`, [id], (err, pRow) => {
                     const normPhone = normalize(pRow.phone_number);
                     
                     db.get(`SELECT profile_id FROM identifiers WHERE normalized_value = ? AND profile_id IS NOT NULL`, [normPhone], (err, match) => {
                         if (match) {
-                            // Update Existing Profile Context [cite: 90]
+                            // Update Existing Profile Context
                             db.run(`UPDATE fraud_events SET profile_id = ? WHERE id = ?`, [match.profile_id, id]);
                             res.json({ message: "Record approved and appended to existing matching profile profile." });
                         } else {
-                            // Provision Distinct Consolidated Profile Document Identity [cite: 90]
+                            // Provision Distinct Consolidated Profile Document Identity
                             db.run(`INSERT INTO cheater_profiles (display_name, normalized_name, profile_status, created_at) VALUES (?, ?, 'verified', ?)`, [event.scam_type, normalize(event.scam_type), timestamp], function() {
                                 const newProfileId = this.lastID;
                                 db.run(`UPDATE fraud_events SET profile_id = ? WHERE id = ?`, [newProfileId, id]);
