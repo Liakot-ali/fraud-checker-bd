@@ -1,0 +1,8 @@
+Fraud-checker-bd/
+├── package.json
+├── server.js
+├── DEVELOPER_GUIDE.txt
+└── public/
+    ├── index.html
+    ├── submit.html
+    └── admin.html

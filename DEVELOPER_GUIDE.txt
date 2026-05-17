@@ -1,0 +1,49 @@
+========================================================================
+                    FRAUD-CHECKER-BD DEVELOPER RUNBOOK
+========================================================================
+
+1. ARCHITECTURAL OVERVIEW
+-------------------------
+Fraud-checker-bd is an open-source public safety platform configured 
+to aggregate public fraud incident reporting into unified relational 
+identities. 
+
+The application uses a 3-layer architecture approach:
+- Frontend: Single Page Client Templates using Tailwind CSS.
+- Application Backend: Node.js with Express Routing Services.
+- Data Management Engine: SQLite operational engine simulating the schema.
+
+2. LOGICAL SCHEMAS & NORMALIZATION (SRS Section 5)
+--------------------------------------------------
+To support robust data structure relationships, the platform handles data entries via 
+discrete normalization operations:
+- All incoming phone numbers and document identifiers are stripped of whitespace 
+  and non-alphanumeric text patterns before undergoing verification comparison sweeps.
+- Multi-field search checks strings against 'cheater_profiles' (display names) 
+  and 'identifiers' (phone records, legal identity strings).
+
+3. IDENTITY CONSOLIDATION ENGINE
+--------------------------------
+When a Moderator marks a pending case as 'approved', the system triggers an evaluation pipeline:
+- It checks if the unique tracking fields are already inside the database.
+- If found, it appends the incident record directly to that existing identity history profile.
+- If not found, a new global profile is created.
+
+4. LOCAL INSTALLATION & STARTUP
+-------------------------------
+Prerequisites: Make sure Node.js is installed on your local computer.
+
+Steps to execute:
+1. Initialize directory components and copy all files into position.
+2. Open terminal inside the project root path.
+3. Run command: npm install
+4. Run command: npm start
+5. Point web browser layout engine targets at: http://localhost:3000
+
+5. MOCK ADMINISTRATOR TESTING PROFILE
+-------------------------------------
+For evaluating administrative moderation pipelines:
+- Authentication URL: /admin.html
+- Test Username ID Key: admin
+- Test Password Secret: admin123
+========================================================================

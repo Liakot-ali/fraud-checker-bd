@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraud-checker-bd | Global Verification Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
+        <a href="/" class="text-xl font-bold text-red-600 tracking-tight">Fraud-Checker-BD</a>
+        <div class="space-x-4">
+            <a href="/submit.html" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">Report an Incident</a> [cite: 136]
+            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a> [cite: 137]
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto mt-12 px-4">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Search Verified Fraud Registry</h1>
+            <p class="mt-3 text-slate-500">Query names, phone numbers, or structural corporate licensing documentation identifiers instantly.</p> [cite: 8]
+        </div>
+
+        <div class="flex gap-2 max-w-2xl mx-auto">
+            <input type="text" id="query" placeholder="Type name, phone number, NID..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none shadow-sm">
+            <button onclick="performSearch()" class="bg-slate-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-800 transition">Search</button>
+        </div>
+
+        <div id="results" class="mt-12 space-y-4"></div>
+        <div id="profile-detail" class="mt-12 p-6 bg-white border border-slate-200 rounded-xl hidden shadow-sm"></div>
+    </main>
+
+    <script>
+        async function performSearch() {
+            const q = document.getElementById('query').value;
+            const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`); [cite: 140]
+            const profiles = await res.json();
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<h3 class="text-lg font-bold mb-2 text-slate-700">Matching Directory Entries</h3>';
+            document.getElementById('profile-detail').classList.add('hidden');
+
+            if(profiles.length === 0) {
+                resultsDiv.innerHTML += '<p class="text-slate-400 text-sm">No confirmed matching indices tracked inside system database.</p>';
+                return;
+            }
+
+            profiles.forEach(p => {
+                resultsDiv.innerHTML += `
+                    <div onclick="viewProfile(${p.id})" class="p-4 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-red-400 transition shadow-sm">
+                        <div class="font-bold text-slate-900">${p.display_name}</div>
+                        <div class="text-xs text-slate-400 mt-1">Profile Identity Account created at: ${p.created_at}</div>
+                    </div>
+                `;
+            });
+        }
+
+        async function viewProfile(id) {
+            const res = await fetch(`/api/profiles/${id}`); [cite: 141]
+            const data = await res.json();
+            const detailDiv = document.getElementById('profile-detail');
+            detailDiv.classList.remove('hidden');
+
+            let eventsHtml = '';
+            data.events.forEach(e => {
+                eventsHtml += `
+                    <div class="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                        <div class="flex justify-between font-semibold text-sm text-slate-700">
+                            <span>Incident Case: ${e.scam_type}</span>
+                            <span class="text-red-600 font-bold">Loss: BDT ${e.loss_amount}</span>
+                        </div>
+                        <p class="text-sm text-slate-600 mt-2">${e.description}</p>
+                    </div>
+                `;
+            });
+
+            detailDiv.innerHTML = `
+                <h2 class="text-xl font-bold text-slate-900">${data.profile.display_name}</h2>
+                <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold mt-1">Verification Status: ${data.profile.profile_status}</div>
+                <div class="mt-4"><h4 class="font-bold text-xs text-slate-500 uppercase">Linked Identity Keys</h4>
+                <p class="text-sm">${data.identifiers.map(i => `${i.identifier_type}: ${i.identifier_value}`).join(', ')}</p></div>
+                <div class="mt-6 border-t pt-4">
+                    <h3 class="font-bold text-slate-800">Approved Public Allegation Event History (${data.events.length})</h3> [cite: 45, 102]
+                    ${eventsHtml || '<p class="text-xs text-slate-400 mt-2">No matching events verified yet.</p>'}
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
