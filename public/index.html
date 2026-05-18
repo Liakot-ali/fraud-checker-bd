@@ -15,14 +15,14 @@
         </div>
     </nav>
 
-    <main class="max-w-4xl mx-auto mt-12 px-4">
+    <main class="max-w-5xl mx-auto mt-12 px-4">
         <div class="text-center mb-8">
             <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Search Verified Fraud Registry</h1>
-            <p class="mt-3 text-slate-500">Query names, phone numbers, or structural corporate licensing documentation identifiers instantly.</p>
+            <p class="mt-3 text-slate-500">Query names, phone numbers, scam descriptions, amounts, or any incident details.</p>
         </div>
 
         <div class="flex gap-2 max-w-2xl mx-auto">
-            <input type="text" id="query" placeholder="Type name, phone number, NID..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none shadow-sm">
+            <input type="text" id="query" placeholder="Type name, phone number, description, amount..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none shadow-sm">
             <button onclick="performSearch()" class="bg-slate-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-800 transition">Search</button>
         </div>
 
@@ -30,61 +30,253 @@
         <div id="profile-detail" class="mt-12 p-6 bg-white border border-slate-200 rounded-xl hidden shadow-sm"></div>
     </main>
 
+    <!-- Event Detail Modal -->
+    <div id="event-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div id="modal-content" class="p-6 space-y-6"></div>
+        </div>
+    </div>
+
     <script>
         async function performSearch() {
             const q = document.getElementById('query').value;
-            const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-            const profiles = await res.json();
-            
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '<h3 class="text-lg font-bold mb-2 text-slate-700">Matching Directory Entries</h3>';
-            document.getElementById('profile-detail').classList.add('hidden');
-
-            if(profiles.length === 0) {
-                resultsDiv.innerHTML += '<p class="text-slate-400 text-sm">No confirmed matching indices tracked inside system database.</p>';
+            if (!q.trim()) {
+                alert('Please enter a search term');
                 return;
             }
 
-            profiles.forEach(p => {
-                resultsDiv.innerHTML += `
-                    <div onclick="viewProfile(${p.id})" class="p-4 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-red-400 transition shadow-sm">
-                        <div class="font-bold text-slate-900">${p.display_name}</div>
-                        <div class="text-xs text-slate-400 mt-1">Profile Identity Account created at: ${p.created_at}</div>
-                    </div>
-                `;
-            });
+            try {
+                const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+                const events = await res.json();
+                
+                const resultsDiv = document.getElementById('results');
+                document.getElementById('profile-detail').classList.add('hidden');
+
+                if (!events || events.length === 0) {
+                    resultsDiv.innerHTML = '<div class="text-center"><h3 class="text-lg font-bold mb-2 text-slate-700">Search Results</h3><p class="text-slate-400 text-sm">No confirmed matching fraud incidents found in database.</p></div>';
+                    return;
+                }
+
+                resultsDiv.innerHTML = `<h3 class="text-lg font-bold mb-4 text-slate-700">Found ${events.length} Matching Incident(s)</h3>`;
+
+                events.forEach(e => {
+                    const phones = e.phones && e.phones.length > 0 ? e.phones.join(', ') : 'Not recorded';
+                    const amount = e.loss_amount ? `BDT ${e.loss_amount.toLocaleString()}` : 'Not specified';
+                    
+                    resultsDiv.innerHTML += `
+                        <div onclick="viewEventModal(${JSON.stringify(e).replace(/"/g, '&quot;')})" class="p-5 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-red-500 hover:shadow-lg transition shadow-sm">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="font-bold text-slate-900">${e.profile_name || 'Unknown Fraudster'}</h4>
+                                    <p class="text-xs text-slate-500 mt-1">📅 Reported: ${new Date(e.submitted_at).toLocaleDateString()}</p>
+                                </div>
+                                <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded font-semibold">Verified</span>
+                            </div>
+                            
+                            <div class="bg-slate-50 p-3 rounded-lg mb-3 border border-slate-100">
+                                <p class="text-sm font-semibold text-slate-900">${e.scam_type}</p>
+                                <p class="text-xs text-slate-600 mt-1 line-clamp-2">${e.description}</p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 text-xs mb-3">
+                                <div class="bg-blue-50 p-2 rounded border border-blue-100">
+                                    <p class="text-blue-700 font-semibold">${amount}</p>
+                                    <p class="text-blue-600 text-xs">Loss Amount</p>
+                                </div>
+                                <div class="bg-purple-50 p-2 rounded border border-purple-100">
+                                    <p class="text-purple-700 font-semibold">${e.loss_item}</p>
+                                    <p class="text-purple-600 text-xs">Item Lost</p>
+                                </div>
+                                <div class="bg-green-50 p-2 rounded border border-green-100">
+                                    <p class="text-green-700 font-semibold text-xs truncate">${phones}</p>
+                                    <p class="text-green-600 text-xs">Phone</p>
+                                </div>
+                                <div class="bg-orange-50 p-2 rounded border border-orange-100">
+                                    <p class="text-orange-700 font-semibold">${e.address || 'N/A'}</p>
+                                    <p class="text-orange-600 text-xs">Location</p>
+                                </div>
+                            </div>
+
+                            <p class="text-xs text-slate-500">Click to view full profile and related incidents</p>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                alert('Search error: ' + err.message);
+            }
         }
 
-        async function viewProfile(id) {
-            const res = await fetch(`/api/profiles/${id}`);
-            const data = await res.json();
-            const detailDiv = document.getElementById('profile-detail');
-            detailDiv.classList.remove('hidden');
+        function viewEventModal(event) {
+            const phones = event.phones && event.phones.length > 0 ? event.phones.join(', ') : 'Not recorded';
+            const amount = event.loss_amount ? `BDT ${event.loss_amount.toLocaleString()}` : 'Not specified';
 
-            let eventsHtml = '';
-            data.events.forEach(e => {
-                eventsHtml += `
-                    <div class="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
-                        <div class="flex justify-between font-semibold text-sm text-slate-700">
-                            <span>Incident Case: ${e.scam_type}</span>
-                            <span class="text-red-600 font-bold">Loss: BDT ${e.loss_amount}</span>
-                        </div>
-                        <p class="text-sm text-slate-600 mt-2">${e.description}</p>
+            const modalContent = `
+                <div class="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-slate-900">Incident Details</h2>
+                    <button onclick="closeEventModal()" class="text-slate-400 hover:text-slate-600 text-2xl">×</button>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Fraudster Profile -->
+                    <div class="border border-slate-200 rounded-lg p-5 bg-slate-50">
+                        <h3 class="font-bold text-slate-900 text-lg">${event.profile_name || 'Unknown Fraudster'}</h3>
+                        <p class="text-sm text-slate-600 mt-1">Status: <span class="font-semibold text-red-600">Verified Fraudster</span></p>
                     </div>
-                `;
-            });
 
-            detailDiv.innerHTML = `
-                <h2 class="text-xl font-bold text-slate-900">${data.profile.display_name}</h2>
-                <div class="text-xs text-slate-400 uppercase tracking-wider font-semibold mt-1">Verification Status: ${data.profile.profile_status}</div>
-                <div class="mt-4"><h4 class="font-bold text-xs text-slate-500 uppercase">Linked Identity Keys</h4>
-                <p class="text-sm">${data.identifiers.map(i => `${i.identifier_type}: ${i.identifier_value}`).join(', ')}</p></div>
-                <div class="mt-6 border-t pt-4">
-                    <h3 class="font-bold text-slate-800">Approved Public Allegation Event History (${data.events.length})</h3>
-                    ${eventsHtml || '<p class="text-xs text-slate-400 mt-2">No matching events verified yet.</p>'}
+                    <!-- Scam Information -->
+                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
+                        <h4 class="font-bold text-slate-800 mb-3">📋 Scam Information</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-slate-500 text-xs font-semibold">Type</p>
+                                <p class="text-slate-900 font-semibold">${event.scam_type}</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-500 text-xs font-semibold">Loss Amount</p>
+                                <p class="text-red-600 font-bold">${amount}</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-500 text-xs font-semibold">Item Lost</p>
+                                <p class="text-slate-900">${event.loss_item}</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-500 text-xs font-semibold">GD Number</p>
+                                <p class="text-slate-900">${event.gd_number || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
+                        <h4 class="font-bold text-slate-800 mb-3">📝 Incident Description</h4>
+                        <p class="text-slate-700 leading-relaxed text-sm">${event.description}</p>
+                    </div>
+
+                    <!-- Contact Information -->
+                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
+                        <h4 class="font-bold text-slate-800 mb-3">📞 Contact Information</h4>
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200 mb-3">
+                            <p class="text-xs text-slate-500 font-semibold">Phone Number(s)</p>
+                            <p class="text-slate-900 font-mono text-sm">${phones}</p>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200">
+                            <p class="text-xs text-slate-500 font-semibold">Location/Address</p>
+                            <p class="text-slate-900 text-sm">${event.address || 'Not provided'}</p>
+                        </div>
+                    </div>
+
+                    <!-- Reporter Information -->
+                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
+                        <h4 class="font-bold text-slate-800 mb-3">👤 Reporter Information</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-slate-500 text-xs font-semibold">Reporter Name</p>
+                                <p class="text-slate-900">${event.reporter_name || 'Anonymous'}</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-500 text-xs font-semibold">Visibility</p>
+                                <p class="text-slate-900 capitalize">${event.reporter_visibility || 'Not specified'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timeline -->
+                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
+                        <h4 class="font-bold text-slate-800 mb-3">⏰ Timeline</h4>
+                        <p class="text-sm text-slate-700">Reported: <span class="font-semibold">${new Date(event.submitted_at).toLocaleString()}</span></p>
+                        ${event.approved_at ? `<p class="text-sm text-green-700 mt-2">Approved: <span class="font-semibold">${new Date(event.approved_at).toLocaleString()}</span></p>` : ''}
+                    </div>
+
+                    ${event.profile_id ? `
+                        <button onclick="viewFullProfile('${event.profile_id}')" class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition">View Full Profile & All Related Incidents</button>
+                    ` : ''}
+
+                    <button onclick="closeEventModal()" class="w-full bg-slate-200 text-slate-800 py-2 rounded-lg font-semibold hover:bg-slate-300 transition">Close</button>
                 </div>
             `;
+
+            document.getElementById('modal-content').innerHTML = modalContent;
+            document.getElementById('event-modal').classList.remove('hidden');
         }
+
+        function closeEventModal() {
+            document.getElementById('event-modal').classList.add('hidden');
+        }
+
+        async function viewFullProfile(profileId) {
+            closeEventModal();
+            try {
+                const res = await fetch(`/api/profiles/${profileId}`);
+                const data = await res.json();
+                const detailDiv = document.getElementById('profile-detail');
+                detailDiv.classList.remove('hidden');
+
+                let eventsHtml = '';
+                const totalLoss = data.events.reduce((sum, e) => sum + (e.loss_amount || 0), 0);
+
+                data.events.forEach(e => {
+                    eventsHtml += `
+                        <div class="p-4 bg-slate-50 rounded-lg border border-slate-100 mt-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <p class="font-semibold text-slate-900">${e.scam_type}</p>
+                                    <p class="text-xs text-slate-500">${new Date(e.submitted_at).toLocaleDateString()}</p>
+                                </div>
+                                <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded font-semibold">BDT ${e.loss_amount ? e.loss_amount.toLocaleString() : '0'}</span>
+                            </div>
+                            <p class="text-sm text-slate-700">${e.description}</p>
+                            <p class="text-xs text-slate-500 mt-2">📍 ${e.address || 'Location not provided'}</p>
+                        </div>
+                    `;
+                });
+
+                detailDiv.innerHTML = `
+                    <div class="border-b border-slate-200 pb-4 mb-4">
+                        <h2 class="text-2xl font-bold text-slate-900">${data.profile.display_name}</h2>
+                        <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mt-1">Status: <span class="text-red-600">Verified Fraudster</span></p>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div class="bg-red-50 p-3 rounded border border-red-100">
+                            <p class="text-red-600 font-bold text-lg">${data.events.length}</p>
+                            <p class="text-xs text-red-600 font-semibold">Total Incidents</p>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded border border-blue-100">
+                            <p class="text-blue-600 font-bold text-lg">BDT ${totalLoss.toLocaleString()}</p>
+                            <p class="text-xs text-blue-600 font-semibold">Total Loss</p>
+                        </div>
+                        <div class="bg-green-50 p-3 rounded border border-green-100">
+                            <p class="text-green-600 font-bold text-lg">${data.identifiers.length}</p>
+                            <p class="text-xs text-green-600 font-semibold">Contact Links</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
+                        <h4 class="font-bold text-slate-800 text-sm mb-3">📱 Identified Contact Information</h4>
+                        <div class="space-y-2">
+                            ${data.identifiers.map(i => `
+                                <div class="bg-white p-2 rounded border border-slate-200">
+                                    <p class="text-xs text-slate-500 font-semibold">${i.identifier_type}</p>
+                                    <p class="text-sm text-slate-900 font-mono">${i.identifier_value}</p>
+                                </div>
+                            `).join('') || '<p class="text-xs text-slate-500">No contact information linked</p>'}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="font-bold text-slate-800 mb-3">🔴 Fraud Incident History (${data.events.length} incidents)</h3>
+                        ${eventsHtml || '<p class="text-xs text-slate-500">No approved incidents yet.</p>'}
+                    </div>
+                `;
+            } catch (err) {
+                alert('Error loading profile: ' + err.message);
+            }
+        }
+
+        // Close modal on outside click
+        document.getElementById('event-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeEventModal();
+        });
     </script>
 </body>
 </html>
