@@ -1,6 +1,7 @@
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const path = require('path');
+const fileUpload = require('express-fileupload');
 require('dotenv').config();
 
 const app = express();
@@ -10,7 +11,9 @@ const DB_NAME = process.env.DB_NAME || 'fraud_checker_db';
 
 let db = null;
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Helper: Text Normalization
@@ -231,11 +234,39 @@ app.get('/api/profiles/:id', async (req, res) => {
 // POST /events Submit Fraud Event (No Login Required)
 app.post('/api/events', async (req, res) => {
     try {
-        const { name, phone, identifier, scam_type, loss_item, loss_amount, description, gd_number, address, reporter_name, reporter_visibility } = req.body;
+        // Extract form fields
+        const {
+            imposter_name,
+            imposter_phone,
+            imposter_nickname,
+            imposter_nid,
+            imposter_address,
+            scam_type,
+            loss_item,
+            loss_amount,
+            description,
+            scam_location,
+            gd_number,
+            alt_phones,
+            reporter_name,
+            reporter_phone,
+            reporter_email,
+            reporter_visibility
+        } = req.body;
 
-        // Mandatory Validation Guardrails
-        if (!name || !phone || !identifier || !scam_type || !loss_item || !description) {
-            return res.status(400).json({ error: "Missing required functional tracking parameters." });
+        // Validation
+        if (!imposter_name || !imposter_phone || !scam_type || !loss_item || !loss_amount || !description) {
+            return res.status(400).json({ error: "Missing required fields." });
+        }
+
+        // Validate description length
+        if (description.length < 30 || description.length > 500) {
+            return res.status(400).json({ error: "Description must be between 30 and 500 characters." });
+        }
+
+        // Validate required fields
+        if (!reporter_name) {
+            return res.status(400).json({ error: "Reporter name is required." });
         }
 
         const timestamp = new Date().toISOString();
@@ -243,17 +274,85 @@ app.post('/api/events', async (req, res) => {
         const eventPhones = db.collection('event_phones');
         const identifiersCollection = db.collection('identifiers');
 
-        // Insert fraud event
+        // Handle file uploads - convert to base64
+        let imposterPictureData = null;
+        let scamProofsData = [];
+
+        // Imposter picture
+        if (req.files && req.files.imposter_picture) {
+            const file = req.files.imposter_picture;
+            imposterPictureData = {
+                name: file.name,
+                mimetype: file.mimetype,
+                size: file.size,
+                data: file.data.toString('base64')
+            };
+        }
+
+        // Scam proofs (multiple files)
+        if (req.files && req.files.scam_proofs) {
+            const proofs = Array.isArray(req.files.scam_proofs) ? req.files.scam_proofs : [req.files.scam_proofs];
+            
+            if (proofs.length > 20) {
+                return res.status(400).json({ error: "Maximum 20 files allowed." });
+            }
+
+            for (let file of proofs) {
+                scamProofsData.push({
+                    name: file.name,
+                    mimetype: file.mimetype,
+                    size: file.size,
+                    data: file.data.toString('base64')
+                });
+            }
+        }
+
+        if (scamProofsData.length === 0) {
+            return res.status(400).json({ error: "At least one proof file is required." });
+        }
+
+        // Parse alternative phones if provided
+        let altPhonesArray = [];
+        if (alt_phones) {
+            try {
+                altPhonesArray = JSON.parse(alt_phones);
+                if (!Array.isArray(altPhonesArray)) {
+                    altPhonesArray = [];
+                }
+            } catch (e) {
+                altPhonesArray = [];
+            }
+        }
+
+        // Insert comprehensive fraud event
         const eventResult = await fraudEvents.insertOne({
-            profile_id: null,
-            reporter_name: reporter_name || 'Anonymous',
-            reporter_visibility,
+            // Imposter details
+            imposter_name,
+            imposter_phone,
+            imposter_normalized_phone: normalize(imposter_phone),
+            imposter_nickname: imposter_nickname || '',
+            imposter_nid: imposter_nid || '',
+            imposter_address: imposter_address || '',
+            imposter_picture: imposterPictureData,
+
+            // Scam details
             scam_type,
             loss_item,
-            loss_amount: loss_amount || 0,
+            loss_amount: parseFloat(loss_amount) || 0,
             description,
+            scam_location: scam_location || '',
             gd_number: gd_number || '',
-            address: address || '',
+            alt_phones: altPhonesArray,
+            scam_proofs: scamProofsData,
+
+            // Reporter information
+            reporter_name,
+            reporter_phone: reporter_phone || '',
+            reporter_email: reporter_email || '',
+            reporter_visibility: reporter_visibility || 'public',
+
+            // Event metadata
+            profile_id: null,
             status: 'pending',
             submitted_at: timestamp,
             approved_at: null,
@@ -262,24 +361,48 @@ app.post('/api/events', async (req, res) => {
 
         const eventId = eventResult.insertedId;
 
-        // Insert event phone
+        // Store primary phone in event_phones
         await eventPhones.insertOne({
             event_id: eventId,
-            phone_number: phone,
-            normalized_phone: normalize(phone)
+            phone_number: imposter_phone,
+            normalized_phone: normalize(imposter_phone)
         });
 
-        // Insert identifier placeholder
+        // Store alternative phones if provided
+        if (altPhonesArray && altPhonesArray.length > 0) {
+            for (let phone of altPhonesArray) {
+                await eventPhones.insertOne({
+                    event_id: eventId,
+                    phone_number: phone,
+                    normalized_phone: normalize(phone)
+                });
+            }
+        }
+
+        // Store imposter name as identifier for search
         await identifiersCollection.insertOne({
             profile_id: null,
-            identifier_type: 'Initial Submission Field',
-            identifier_value: identifier,
-            normalized_value: normalize(identifier),
-            is_primary: false
+            identifier_type: 'imposter_name',
+            identifier_value: imposter_name,
+            normalized_value: normalize(imposter_name)
         });
 
-        res.json({ message: "Fraud allegation submitted successfully to review queue.", eventId });
+        // Store imposter NID if provided
+        if (imposter_nid) {
+            await identifiersCollection.insertOne({
+                profile_id: null,
+                identifier_type: 'nid',
+                identifier_value: imposter_nid,
+                normalized_value: normalize(imposter_nid)
+            });
+        }
+
+        res.json({ 
+            message: "✓ Fraud report submitted successfully! Your report will be reviewed by our team.", 
+            eventId 
+        });
     } catch (err) {
+        console.error('Event submission error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -394,25 +517,23 @@ app.patch('/api/admin/events/:id/:action', async (req, res) => {
             if (phoneData) {
                 const normPhone = normalize(phoneData.phone_number);
 
-                // Check if matching profile exists by phone number
+                // Check if matching profile exists
                 const matchingIdentifier = await identifiersCollection.findOne({
                     normalized_value: normPhone,
                     profile_id: { $ne: null }
                 });
 
                 if (matchingIdentifier) {
-                    // Update Existing Profile Context - just link the event
+                    // Update Existing Profile Context
                     await fraudEvents.updateOne(
                         { _id: eventId },
                         { $set: { profile_id: matchingIdentifier.profile_id } }
                     );
-                    res.json({ message: "Record approved and appended to existing matching profile." });
+                    res.json({ message: "✓ Record approved and appended to existing fraudster profile." });
                 } else {
                     // Provision Distinct Consolidated Profile Document Identity
-                    // Use the submitted name from the event or scam_type as fallback
-                    const fraudsterName = event.reporter_name && event.reporter_name !== 'Anonymous' 
-                        ? event.reporter_name 
-                        : event.scam_type || 'Unidentified Fraudster';
+                    // Use the imposter's name from the event
+                    const fraudsterName = event.imposter_name || 'Unidentified Fraudster';
 
                     const newProfile = await cheaterProfiles.insertOne({
                         display_name: fraudsterName,
@@ -439,7 +560,16 @@ app.patch('/api/admin/events/:id/:action', async (req, res) => {
                         is_primary: true
                     });
 
-                    res.json({ message: "Record approved and new profile established." });
+                    // Insert imposter name identifier
+                    await identifiersCollection.insertOne({
+                        profile_id: newProfileId,
+                        identifier_type: 'imposter_name',
+                        identifier_value: fraudsterName,
+                        normalized_value: normalize(fraudsterName),
+                        is_primary: true
+                    });
+
+                    res.json({ message: "✓ Record approved and new fraudster profile established." });
                 }
             } else {
                 res.json({ message: "Record approved but no phone data found." });

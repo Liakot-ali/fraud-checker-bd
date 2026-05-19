@@ -7,88 +7,497 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
-    <div class="max-w-2xl mx-auto my-12 p-8 bg-white border border-slate-200 rounded-2xl shadow-sm">
-        <h2 class="text-2xl font-bold tracking-tight text-slate-900">Submit New Incident Report</h2>
-        <p class="text-slate-500 text-sm mt-1 mb-6">Submissions undergo administrative validation checkings prior to profile index publishing operations.</p>
+    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
+        <a href="/" class="text-xl font-bold text-red-600 tracking-tight">Fraud-Checker-BD</a>
+        <div class="space-x-4">
+            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Search</a>
+            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a>
+        </div>
+    </nav>
 
-        <form id="submissionForm" onsubmit="submitForm(event)" class="space-y-4">
-            <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Target Name (Individual/Entity)*</label>
-                <input type="text" id="name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+    <div class="max-w-4xl mx-auto my-12 px-4">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="bg-red-600 text-white px-8 py-6">
+                <h2 class="text-3xl font-bold">Submit Fraud Incident Report</h2>
+                <p class="text-red-100 text-sm mt-2">All submissions undergo administrative review before public listing</p>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Target Phone Number*</label>
-                    <input type="text" id="phone" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+
+            <form id="submissionForm" onsubmit="submitForm(event)" class="p-8 space-y-8">
+                <!-- SECTION 1: IMPOSTER PERSONAL DETAILS -->
+                <div class="border-2 border-blue-200 rounded-lg p-6 bg-blue-50">
+                    <h3 class="text-xl font-bold text-blue-900 mb-6 flex items-center gap-2">
+                        <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                        Imposter Personal Details
+                    </h3>
+
+                    <!-- Imposter Picture -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Picture</label>
+                        <p class="text-xs text-slate-500 mb-3">Upload a photo of the imposter (JPG, PNG, max 5MB)</p>
+                        <input type="file" id="imposter_picture" accept="image/*" class="block w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <div id="imposter_preview" class="mt-3 relative inline-block"></div>
+                    </div>
+
+                    <!-- Imposter Name -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Name <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2">Full name of the fraudster as known</p>
+                        <input type="text" id="imposter_name" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+
+                    <!-- Imposter Phone -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Phone Number <span class="text-red-600">*</span></label>
+                            <p class="text-xs text-slate-500 mb-2">Format: +880XXXXXXXXX or 01XXXXXXXXX</p>
+                            <input type="tel" id="imposter_phone" required pattern="[0-9+\-]{10,15}" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                            <p id="phone_error" class="text-xs text-red-600 mt-1 hidden"></p>
+                        </div>
+
+                        <!-- Nickname/Pseudonym -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Nickname / Pseudonym</label>
+                            <p class="text-xs text-slate-500 mb-2">Also known as (optional)</p>
+                            <input type="text" id="imposter_nickname" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                    </div>
+
+                    <!-- NID -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">NID / ID Card Number</label>
+                        <p class="text-xs text-slate-500 mb-2">National ID, passport, or other identity document number</p>
+                        <input type="text" id="imposter_nid" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+
+                    <!-- Address -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Address</label>
+                        <p class="text-xs text-slate-500 mb-2">Last known address or location</p>
+                        <input type="text" id="imposter_address" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">NID / Corporate Registration ID*</label>
-                    <input type="text" id="identifier" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+
+                <!-- SECTION 2: SCAM DETAILS -->
+                <div class="border-2 border-green-200 rounded-lg p-6 bg-green-50">
+                    <h3 class="text-xl font-bold text-green-900 mb-6 flex items-center gap-2">
+                        <span class="bg-green-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                        Scam Details
+                    </h3>
+
+                    <!-- Scam Type -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Type of Scam <span class="text-red-600">*</span></label>
+                            <select id="scam_type" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                                <option value="">-- Select Scam Type --</option>
+                                <option value="Ticket Fraud">Ticket Fraud (Flight, Movie, Event)</option>
+                                <option value="Hotel Booking">Hotel Booking Scam</option>
+                                <option value="Tour/Travel">Tour Group / Travel Fraud</option>
+                                <option value="Reservation">Restaurant/Event Reservation Scam</option>
+                                <option value="E-Commerce">E-Commerce / Online Shopping</option>
+                                <option value="Mobile Banking">Mobile Banking / Payment Fraud</option>
+                                <option value="Job Offer">Job Offer Scam</option>
+                                <option value="Loan/Investment">Loan / Investment Scam</option>
+                                <option value="Romance">Romance / Dating Scam</option>
+                                <option value="Other">Other (please specify below)</option>
+                            </select>
+                            <input type="text" id="scam_type_other" placeholder="Specify other type..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm mt-2 hidden">
+                        </div>
+
+                        <!-- Loss Item -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Loss Item / Property <span class="text-red-600">*</span></label>
+                            <select id="loss_item" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                                <option value="">-- Select Loss Item --</option>
+                                <option value="Money">Money / Cash</option>
+                                <option value="Reputation">Reputation / Trust</option>
+                                <option value="Device">Device (Phone, Laptop, etc.)</option>
+                                <option value="Personal Data">Personal Data / Information</option>
+                                <option value="Jewelry">Jewelry / Valuables</option>
+                                <option value="Documents">Important Documents</option>
+                                <option value="Other">Other (please specify below)</option>
+                            </select>
+                            <input type="text" id="loss_item_other" placeholder="Specify other item..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm mt-2 hidden">
+                        </div>
+                    </div>
+
+                    <!-- Loss Amount -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Value of Loss (BDT) <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2">Estimated loss amount in Bangladeshi Taka</p>
+                        <input type="number" id="loss_amount" required min="0" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Description of the Scam <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2">Detailed explanation (30-500 characters)</p>
+                        <textarea id="description" required minlength="30" maxlength="500" rows="5" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" placeholder="Describe what happened..."></textarea>
+                        <div class="flex justify-between items-center mt-2">
+                            <p class="text-xs text-slate-500">Character count: <span id="char_count">0</span>/500</p>
+                            <p id="char_warning" class="text-xs text-red-600 hidden">Minimum 30 characters required</p>
+                        </div>
+                    </div>
+
+                    <!-- Proofs -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Proof of the Scam <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2">Screenshots, images, videos or documents (max 20 files total, 50MB each)</p>
+                        <input type="file" id="scam_proofs" accept="image/*,video/*,.pdf,.doc,.docx" multiple class="block w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                        <p id="file_count" class="text-xs text-slate-600 mt-2">Selected: 0 file(s)</p>
+                        <div id="proofs_preview" class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4"></div>
+                        <p id="file_warning" class="text-xs text-red-600 mt-2 hidden">Maximum 20 files allowed. Please remove some files.</p>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Location of Scam</label>
+                        <p class="text-xs text-slate-500 mb-2">Where the scam took place (online platform, location, etc.)</p>
+                        <input type="text" id="scam_location" placeholder="e.g., Facebook, OLX, WhatsApp, etc." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                    </div>
+
+                    <!-- GD Number -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">General Diary (GD) Number</label>
+                        <p class="text-xs text-slate-500 mb-2">Police GD/FIR number if filed</p>
+                        <input type="text" id="gd_number" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                    </div>
+
+                    <!-- Alternative Phone -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Alternative Phone Number of Scammer</label>
+                        <p class="text-xs text-slate-500 mb-2">Other phone numbers used by the fraudster</p>
+                        <div id="alt_phones_container" class="space-y-2">
+                            <div class="flex gap-2">
+                                <input type="tel" class="alt_phone_input flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" pattern="[0-9+\-]{10,15}" placeholder="+880XXXXXXXXX">
+                                <button type="button" id="add_alt_phone_btn" onclick="addAltPhoneField()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-semibold text-sm">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Type of Scam*</label>
-                    <input type="text" id="scam_type" placeholder="e.g., Mobile Banking, E-Commerce" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+
+                <!-- SECTION 3: REPORTER INFORMATION -->
+                <div class="border-2 border-purple-200 rounded-lg p-6 bg-purple-50">
+                    <h3 class="text-xl font-bold text-purple-900 mb-6 flex items-center gap-2">
+                        <span class="bg-purple-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                        Reporter Information
+                    </h3>
+
+                    <!-- Reporter Name -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Your Name <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2">Full name or pseudonym (can be hidden from public)</p>
+                        <input type="text" id="reporter_name" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+                    </div>
+
+                    <!-- Reporter Phone -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Your Phone Number</label>
+                            <p class="text-xs text-slate-500 mb-2">For follow-up purposes (optional)</p>
+                            <input type="tel" id="reporter_phone" pattern="[0-9+\-]{10,15}" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+                        </div>
+
+                        <!-- Reporter Email -->
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Your Email</label>
+                            <p class="text-xs text-slate-500 mb-2">For updates and notifications (optional)</p>
+                            <input type="email" id="reporter_email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Visibility Toggle -->
+                    <div class="flex items-center gap-3 p-4 bg-white rounded-lg border border-slate-300">
+                        <input type="checkbox" id="hide_reporter" class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500">
+                        <label for="hide_reporter" class="text-sm font-semibold text-slate-700 select-none">
+                            Hide my information from public event list
+                        </label>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">If checked, your report will be marked as "Anonymous" publicly</p>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Loss Item/Property Name*</label>
-                    <input type="text" id="loss_item" placeholder="e.g., Cash, Laptop" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+
+                <!-- SUBMIT BUTTON -->
+                <div class="flex justify-between items-center pt-6 border-t border-slate-200">
+                    <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">← Back to Search</a>
+                    <button type="submit" class="bg-red-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-red-700 transition shadow-lg">Submit Report</button>
                 </div>
-            </div>
-            <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Financial Loss Amount (Optional)</label>
-                <input type="number" id="loss_amount" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
-            </div>
-            <div>
-                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Detailed Scam Description*</label>
-                <textarea id="description" rows="4" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"></textarea>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Police General Diary (GD) Number</label>
-                    <input type="text" id="gd_number" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Address / Location Reference</label>
-                    <input type="text" id="address" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
-                </div>
-            </div>
-            <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" id="anon" class="rounded text-red-600 focus:ring-red-500">
-                    <label for="anon" class="text-sm text-slate-600 select-none">Anonymize tracking configuration name records</label>
-                </div>
-                <button type="submit" class="bg-red-600 text-white px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-red-700 transition">Transmit Report</button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 
     <script>
+        // Global array to store accumulated proof files
+        let uploadedProofs = [];
+
+        // Phone validation
+        function validatePhone(phone) {
+            const bdPattern = /^(\+880|880|0)?[1-9][0-9]{9}$/;
+            return bdPattern.test(phone.replace(/[\s\-()]/g, ''));
+        }
+
+        // Update character count
+        document.getElementById('description').addEventListener('input', function(e) {
+            document.getElementById('char_count').textContent = e.target.value.length;
+            const warning = document.getElementById('char_warning');
+            if (e.target.value.length < 30 && e.target.value.length > 0) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        });
+
+        // Show/hide "Other" input for scam type
+        document.getElementById('scam_type').addEventListener('change', function(e) {
+            const otherInput = document.getElementById('scam_type_other');
+            if (e.target.value === 'Other') {
+                otherInput.classList.remove('hidden');
+                otherInput.required = true;
+            } else {
+                otherInput.classList.add('hidden');
+                otherInput.required = false;
+                otherInput.value = '';
+            }
+        });
+
+        // Show/hide "Other" input for loss item
+        document.getElementById('loss_item').addEventListener('change', function(e) {
+            const otherInput = document.getElementById('loss_item_other');
+            if (e.target.value === 'Other') {
+                otherInput.classList.remove('hidden');
+                otherInput.required = true;
+            } else {
+                otherInput.classList.add('hidden');
+                otherInput.required = false;
+                otherInput.value = '';
+            }
+        });
+
+        // File preview for imposter picture with remove button
+        document.getElementById('imposter_picture').addEventListener('change', function(e) {
+            const preview = document.getElementById('imposter_preview');
+            if (e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    preview.innerHTML = `
+                        <div class="relative inline-block">
+                            <img src="${event.target.result}" alt="Imposter" class="w-32 h-32 object-cover rounded-lg border border-slate-300 shadow-sm">
+                            <button type="button" onclick="removeImposterPicture()" class="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold hover:bg-red-700 shadow-lg">✕</button>
+                        </div>
+                    `;
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            } else {
+                preview.innerHTML = '';
+            }
+        });
+
+        // Remove imposter picture
+        function removeImposterPicture() {
+            document.getElementById('imposter_picture').value = '';
+            document.getElementById('imposter_preview').innerHTML = '';
+        }
+
+        // Render proof file previews
+        function renderProofPreviews() {
+            const previewDiv = document.getElementById('proofs_preview');
+            previewDiv.innerHTML = '';
+            let imageCount = 0;
+
+            uploadedProofs.forEach((fileObj, index) => {
+                const file = fileObj.file;
+                const isImage = file.type.startsWith('image/');
+                const isVideo = file.type.startsWith('video/');
+
+                if (isImage || isVideo) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        if (isImage) {
+                            previewDiv.innerHTML += `
+                                <div class="relative rounded-lg overflow-hidden border border-slate-300 shadow-sm">
+                                    <img src="${event.target.result}" alt="proof" class="w-full h-24 object-cover">
+                                    <button type="button" onclick="removeProofFile(${index})" class="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-700 shadow-lg">✕</button>
+                                    <p class="text-xs p-1 bg-slate-100 truncate">${file.name}</p>
+                                </div>
+                            `;
+                        } else {
+                            previewDiv.innerHTML += `
+                                <div class="relative rounded-lg overflow-hidden border border-slate-300 shadow-sm bg-gray-100 flex items-center justify-center h-24">
+                                    <button type="button" onclick="removeProofFile(${index})" class="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-700 shadow-lg z-10">✕</button>
+                                    <div class="text-center">
+                                        <p class="text-2xl">🎥</p>
+                                        <p class="text-xs p-1">${file.name.substring(0, 15)}</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    previewDiv.innerHTML += `
+                        <div class="relative rounded-lg overflow-hidden border border-slate-300 shadow-sm bg-gray-100 flex items-center justify-center h-24">
+                            <button type="button" onclick="removeProofFile(${index})" class="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-700 shadow-lg z-10">✕</button>
+                            <div class="text-center">
+                                <p class="text-2xl">📄</p>
+                                <p class="text-xs p-1">${file.name.substring(0, 15)}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            // Update file count display
+            document.getElementById('file_count').textContent = `Selected: ${uploadedProofs.length} file(s)`;
+            
+            // Show/hide warning
+            if (uploadedProofs.length >= 20) {
+                document.getElementById('file_warning').classList.remove('hidden');
+            } else {
+                document.getElementById('file_warning').classList.add('hidden');
+            }
+        }
+
+        // Remove proof file
+        function removeProofFile(index) {
+            uploadedProofs.splice(index, 1);
+            renderProofPreviews();
+        }
+
+        // File selection for proofs
+        document.getElementById('scam_proofs').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+
+            // Check total count
+            if (uploadedProofs.length + files.length > 20) {
+                alert(`Cannot add ${files.length} file(s). Maximum 20 files total. Current: ${uploadedProofs.length}`);
+                e.target.value = '';
+                return;
+            }
+
+            // Add files to the accumulated array
+            files.forEach(file => {
+                uploadedProofs.push({ file });
+            });
+
+            // Clear the input for next selection
+            e.target.value = '';
+            
+            renderProofPreviews();
+        });
+
+        // Add alternative phone field
+        function addAltPhoneField() {
+            const container = document.getElementById('alt_phones_container');
+            const inputCount = container.querySelectorAll('.alt_phone_input').length;
+
+            if (inputCount >= 5) {
+                alert('Maximum 5 alternative phone numbers allowed');
+                return;
+            }
+
+            const newField = document.createElement('div');
+            newField.className = 'flex gap-2';
+            newField.innerHTML = `
+                <input type="tel" class="alt_phone_input flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" pattern="[0-9+\-]{10,15}" placeholder="+880XXXXXXXXX">
+                <button type="button" onclick="this.parentElement.remove()" class="bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 transition font-semibold text-sm">−</button>
+            `;
+
+            container.appendChild(newField);
+        }
+
+        // Form submission
         async function submitForm(e) {
             e.preventDefault();
-            const payload = {
-                name: document.getElementById('name').value,
-                phone: document.getElementById('phone').value,
-                identifier: document.getElementById('identifier').value,
-                scam_type: document.getElementById('scam_type').value,
-                loss_item: document.getElementById('loss_item').value,
-                loss_amount: parseFloat(document.getElementById('loss_amount').value) || 0,
-                description: document.getElementById('description').value,
-                gd_number: document.getElementById('gd_number').value,
-                address: document.getElementById('address').value,
-                reporter_name: document.getElementById('anon').checked ? 'Anonymous' : 'Public Submitter',
-                reporter_visibility: document.getElementById('anon').checked ? 'hidden' : 'public'
-            };
 
-            const res = await fetch('/api/events', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            alert(data.message || data.error);
-            if(res.ok) window.location.href = '/';
+            // Validate phones
+            const imposterPhone = document.getElementById('imposter_phone').value;
+            const reporterPhone = document.getElementById('reporter_phone').value;
+            
+            if (imposterPhone && !validatePhone(imposterPhone)) {
+                document.getElementById('phone_error').textContent = 'Invalid phone format';
+                document.getElementById('phone_error').classList.remove('hidden');
+                return;
+            }
+
+            if (reporterPhone && !validatePhone(reporterPhone)) {
+                alert('Invalid reporter phone number format');
+                return;
+            }
+
+            // Validate all alternative phone numbers
+            const altPhoneInputs = document.querySelectorAll('.alt_phone_input');
+            for (let input of altPhoneInputs) {
+                if (input.value && !validatePhone(input.value)) {
+                    alert('Invalid alternative phone number format: ' + input.value);
+                    return;
+                }
+            }
+
+            // Validate description length
+            const description = document.getElementById('description').value;
+            if (description.length < 30 || description.length > 500) {
+                alert('Description must be between 30 and 500 characters');
+                return;
+            }
+
+            // Validate at least one proof file
+            if (uploadedProofs.length === 0) {
+                alert('Please upload at least one proof file');
+                return;
+            }
+
+            // Create FormData for file upload
+            const formData = new FormData();
+            formData.append('imposter_name', document.getElementById('imposter_name').value);
+            formData.append('imposter_phone', imposterPhone);
+            formData.append('imposter_nickname', document.getElementById('imposter_nickname').value);
+            formData.append('imposter_nid', document.getElementById('imposter_nid').value);
+            formData.append('imposter_address', document.getElementById('imposter_address').value);
+            formData.append('scam_type', document.getElementById('scam_type').value === 'Other' ? document.getElementById('scam_type_other').value : document.getElementById('scam_type').value);
+            formData.append('loss_item', document.getElementById('loss_item').value === 'Other' ? document.getElementById('loss_item_other').value : document.getElementById('loss_item').value);
+            formData.append('loss_amount', parseFloat(document.getElementById('loss_amount').value) || 0);
+            formData.append('description', description);
+            formData.append('scam_location', document.getElementById('scam_location').value);
+            formData.append('gd_number', document.getElementById('gd_number').value);
+            formData.append('reporter_name', document.getElementById('reporter_name').value);
+            formData.append('reporter_phone', reporterPhone);
+            formData.append('reporter_email', document.getElementById('reporter_email').value);
+            formData.append('reporter_visibility', document.getElementById('hide_reporter').checked ? 'hidden' : 'public');
+            
+            // Add imposter picture
+            const imposterPicture = document.getElementById('imposter_picture').files[0];
+            if (imposterPicture) {
+                formData.append('imposter_picture', imposterPicture);
+            }
+
+            // Add all alternative phone numbers
+            const altPhoneValues = Array.from(document.querySelectorAll('.alt_phone_input'))
+                .map(input => input.value)
+                .filter(value => value);
+            if (altPhoneValues.length > 0) {
+                formData.append('alt_phones', JSON.stringify(altPhoneValues));
+            }
+
+            // Add all proof files
+            for (let fileObj of uploadedProofs) {
+                formData.append('scam_proofs', fileObj.file);
+            }
+
+            try {
+                const res = await fetch('/api/events', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    alert('✓ Report submitted successfully! Thank you for your contribution.');
+                    window.location.href = '/';
+                } else {
+                    alert('Error: ' + (data.message || data.error));
+                }
+            } catch (err) {
+                alert('Submission error: ' + err.message);
+            }
         }
     </script>
 </body>
