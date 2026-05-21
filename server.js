@@ -821,6 +821,19 @@ app.get('/api/admin/reporters', async (req, res) => {
 });
 
 // Start server
+connectToDatabase()
+  .then(() => {
+    console.log("✓ Database connected successfully");
+  })
+  .catch((err) => {
+    console.error("✗ Database connection failed:", err);
+  });
+
+// Export app for Vercel Serverless Function
+export default app;
+
+/*
 connectToDatabase().then(() => {
     app.listen(PORT, () => console.log(`✓ Fraud-checker-bd operational framework running on port ${PORT}`));
 });
+*/
