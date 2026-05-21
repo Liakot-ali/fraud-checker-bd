@@ -38,14 +38,22 @@
                         <div id="imposter_preview" class="mt-3 relative inline-block"></div>
                     </div>
 
-                    <!-- Imposter Name -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Name <span class="text-red-600">*</span></label>
-                        <p class="text-xs text-slate-500 mb-2">Full name of the fraudster as known</p>
-                        <input type="text" id="imposter_name" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <!-- Imposter Name & Nickname -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Name <span class="text-red-600">*</span></label>
+                            <p class="text-xs text-slate-500 mb-2">Full name of the fraudster as known</p>
+                            <input type="text" id="imposter_name" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Nickname / Pseudonym</label>
+                            <p class="text-xs text-slate-500 mb-2">Also known as (optional)</p>
+                            <input type="text" id="imposter_nickname" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
                     </div>
 
-                    <!-- Imposter Phone -->
+                    <!-- Imposter Phone & NID -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Phone Number <span class="text-red-600">*</span></label>
@@ -54,19 +62,18 @@
                             <p id="phone_error" class="text-xs text-red-600 mt-1 hidden"></p>
                         </div>
 
-                        <!-- Nickname/Pseudonym -->
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Nickname / Pseudonym</label>
-                            <p class="text-xs text-slate-500 mb-2">Also known as (optional)</p>
-                            <input type="text" id="imposter_nickname" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">NID / ID Card Number</label>
+                            <p class="text-xs text-slate-500 mb-2">National ID, passport, or other identity document number</p>
+                            <input type="text" id="imposter_nid" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                     </div>
 
-                    <!-- NID -->
+                    <!-- Social Media Account -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">NID / ID Card Number</label>
-                        <p class="text-xs text-slate-500 mb-2">National ID, passport, or other identity document number</p>
-                        <input type="text" id="imposter_nid" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <label class="block text-sm font-bold text-slate-700 mb-2">Social Media Account</label>
+                        <p class="text-xs text-slate-500 mb-2">Link to fraudster's social media profile (optional)</p>
+                        <input type="url" id="social_media_account" placeholder="e.g., https://facebook.com/profile or @username" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     </div>
 
                     <!-- Address -->
@@ -452,6 +459,7 @@
             formData.append('imposter_nickname', document.getElementById('imposter_nickname').value);
             formData.append('imposter_nid', document.getElementById('imposter_nid').value);
             formData.append('imposter_address', document.getElementById('imposter_address').value);
+            formData.append('social_media_account', document.getElementById('social_media_account').value);
             formData.append('scam_type', document.getElementById('scam_type').value === 'Other' ? document.getElementById('scam_type_other').value : document.getElementById('scam_type').value);
             formData.append('loss_item', document.getElementById('loss_item').value === 'Other' ? document.getElementById('loss_item_other').value : document.getElementById('loss_item').value);
             formData.append('loss_amount', parseFloat(document.getElementById('loss_amount').value) || 0);

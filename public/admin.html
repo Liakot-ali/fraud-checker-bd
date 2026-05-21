@@ -3,34 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moderation Management Suite | Guard Desk</title>
+    <title>Admin Control Panel | Fraud-Checker-BD</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans">
+    <!-- Login Block -->
     <div id="login-block" class="max-w-md mx-auto mt-24 p-8 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl">
-        <h2 class="text-xl font-bold tracking-tight mb-4">Secure Moderator Gateway</h2>
+        <h2 class="text-2xl font-bold text-white mb-2">Fraud-Checker-BD Admin</h2>
+        <p class="text-sm text-slate-400 mb-6">Secure Moderator Access Portal</p>
         <div class="space-y-3">
-            <input type="text" id="user" placeholder="Admin Username" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
-            <input type="password" id="pass" placeholder="Authorization Password" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
-            <button onclick="login()" class="w-full bg-red-600 py-2 rounded-lg font-semibold text-sm hover:bg-red-700 transition">Request Console Entry</button>
+            <input type="text" id="user" placeholder="Admin Username" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+            <input type="password" id="pass" placeholder="Password" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+            <button onclick="login()" class="w-full bg-red-600 py-2 rounded-lg font-semibold text-sm hover:bg-red-700 transition">Login</button>
+            <p class="text-xs text-slate-500 text-center mt-4">Demo: admin / admin123</p>
         </div>
     </div>
 
-    <div id="console-block" class="max-w-5xl mx-auto my-12 p-6 hidden">
-        <div class="flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
-            <h1 class="text-2xl font-black tracking-tight text-white">Central Moderation Workflow Terminal</h1>
-            <button onclick="window.location.reload()" class="text-xs bg-slate-800 px-3 py-1.5 rounded text-slate-400 hover:text-white">Exit Security State</button>
+    <!-- Admin Dashboard -->
+    <div id="admin-block" class="hidden">
+        <!-- Header -->
+        <div class="bg-slate-800 border-b border-slate-700 p-6 sticky top-0 z-40 shadow-lg">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-black text-white">Fraud-Checker-BD Control Panel</h1>
+                    <p class="text-sm text-slate-400 mt-1">Central Administration & Moderation Hub</p>
+                </div>
+                <button onclick="logout()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-semibold transition">Logout</button>
+            </div>
         </div>
 
-        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Active System Verification Queue</h3>
-        <div id="queue" class="space-y-4"></div>
+        <!-- Navigation Tabs -->
+        <div class="bg-slate-800 border-b border-slate-700 sticky top-20 z-30">
+            <div class="max-w-7xl mx-auto px-6 flex gap-1 overflow-x-auto">
+                <button onclick="switchTab('live')" class="tab-btn active px-4 py-3 text-sm font-semibold border-b-2 border-green-500 text-green-400 hover:text-white transition" data-tab="live">
+                    ✓ Live Events
+                </button>
+                <button onclick="switchTab('pending')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="pending">
+                    ⏳ Pending Events
+                </button>
+                <button onclick="switchTab('deleted')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="deleted">
+                    ✕ Deleted Events
+                </button>
+                <button onclick="switchTab('imposters')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="imposters">
+                    👥 Imposter List
+                </button>
+                <button onclick="switchTab('reporters')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="reporters">
+                    📋 Reporter List
+                </button>
+                <button onclick="switchTab('admins')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="admins">
+                    🔑 Admin List
+                </button>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="max-w-7xl mx-auto p-6">
+            <!-- Live Events Tab -->
+            <div id="live-tab" class="tab-content">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Live Fraud Events</h2>
+                    <p class="text-sm text-slate-400">Approved events currently in the public fraud database</p>
+                </div>
+                <div id="live-events" class="grid gap-4"></div>
+            </div>
+
+            <!-- Pending Events Tab -->
+            <div id="pending-tab" class="tab-content hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Pending Fraud Events</h2>
+                    <p class="text-sm text-slate-400">Events awaiting administrative review and approval</p>
+                </div>
+                <div id="pending-events" class="grid gap-4"></div>
+            </div>
+
+            <!-- Deleted Events Tab -->
+            <div id="deleted-tab" class="tab-content hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Deleted Fraud Events</h2>
+                    <p class="text-sm text-slate-400">Rejected events with reason and timestamp</p>
+                </div>
+                <div id="deleted-events" class="grid gap-4"></div>
+            </div>
+
+            <!-- Imposter List Tab -->
+            <div id="imposters-tab" class="tab-content hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Fraud Imposter Database</h2>
+                    <p class="text-sm text-slate-400">Complete list of identified and verified fraudsters</p>
+                </div>
+                <div id="imposters-list" class="grid gap-4"></div>
+            </div>
+
+            <!-- Reporter List Tab -->
+            <div id="reporters-tab" class="tab-content hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Reporter Contributions</h2>
+                    <p class="text-sm text-slate-400">Community members and their fraud report submissions</p>
+                </div>
+                <div id="reporters-list" class="grid gap-4"></div>
+            </div>
+
+            <!-- Admin List Tab -->
+            <div id="admins-tab" class="tab-content hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Admin Management</h2>
+                    <p class="text-sm text-slate-400">System administrators and moderators (Coming Soon)</p>
+                </div>
+                <div class="text-center py-12 bg-slate-800 border border-slate-700 rounded-lg">
+                    <p class="text-slate-400">Admin management features coming in next update</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Detail Modal -->
-    <div id="detail-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div id="detail-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div class="sticky top-0 bg-slate-800 border-b border-slate-700 p-6 flex justify-between items-center">
-                <h2 class="text-2xl font-bold text-white">Event Details Review</h2>
+                <h2 class="text-2xl font-bold text-white">Event Details</h2>
                 <button onclick="closeModal()" class="text-slate-400 hover:text-white text-2xl">×</button>
             </div>
 
@@ -38,10 +128,8 @@
                 <!-- Content will be populated dynamically -->
             </div>
 
-            <div class="sticky bottom-0 bg-slate-800 border-t border-slate-700 p-6 flex justify-end gap-2">
-                <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>
-                <button onclick="doModerate('reject')" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-semibold transition">Reject / Flag Away</button>
-                <button onclick="doModerate('approve')" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold text-white transition">Approve & Merge Identity</button>
+            <div id="modal-actions" class="sticky bottom-0 bg-slate-800 border-t border-slate-700 p-6 flex justify-end gap-2">
+                <!-- Actions will be populated dynamically -->
             </div>
         </div>
     </div>
@@ -49,196 +137,492 @@
     <script>
         let token = "";
         let currentEventId = null;
+        let currentEventStatus = null;
 
+        // Login
         async function login() {
+            const username = document.getElementById('user').value;
+            const password = document.getElementById('pass').value;
+
             const res = await fetch('/api/admin/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: document.getElementById('user').value, password: document.getElementById('pass').value })
+                body: JSON.stringify({ username, password })
             });
+
             const data = await res.json();
-            if(data.success) {
+            if (data.success) {
                 token = data.token;
                 document.getElementById('login-block').classList.add('hidden');
-                document.getElementById('console-block').classList.remove('hidden');
-                fetchQueue();
+                document.getElementById('admin-block').classList.remove('hidden');
+                loadAllData();
             } else {
-                alert(data.error);
+                alert('Invalid credentials');
             }
         }
 
-        async function fetchQueue() {
-            const res = await fetch('/api/admin/moderation-queue');
-            const events = await res.json();
-            const queueDiv = document.getElementById('queue');
-            queueDiv.innerHTML = '';
+        // Logout
+        function logout() {
+            token = "";
+            document.getElementById('admin-block').classList.add('hidden');
+            document.getElementById('login-block').classList.remove('hidden');
+            location.reload();
+        }
 
-            if(events.length === 0) {
-                queueDiv.innerHTML = '<div class="text-slate-500 text-sm text-center py-8 border border-dashed border-slate-800 rounded-xl">Queue clear. No pending incident vectors require administrative validation.</div>';
-                return;
-            }
+        // Load all data
+        async function loadAllData() {
+            await loadLiveEvents();
+            await loadPendingEvents();
+            await loadDeletedEvents();
+            await loadImposters();
+            await loadReporters();
+        }
 
-            events.forEach(e => {
-                queueDiv.innerHTML += `
-                    <div onclick="viewEventDetails('${e._id}')" class="p-6 bg-slate-800 border border-slate-700 rounded-xl space-y-3 cursor-pointer hover:border-red-500/50 hover:bg-slate-800/80 transition">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <h4 class="text-lg font-bold text-white">${e.scam_type}</h4>
-                                <p class="text-xs text-slate-400">Submitted at: ${new Date(e.submitted_at).toLocaleString()}</p>
-                            </div>
-                            <span class="bg-amber-500/10 text-amber-400 text-xs px-2 py-1 rounded border border-amber-500/20 font-mono font-bold uppercase">Pending Check</span>
-                        </div>
-                        <p class="text-sm text-slate-300 bg-slate-900/50 p-3 rounded border border-slate-800">${e.description}</p>
-                        <div class="text-xs text-slate-400 flex justify-between">
-                            <span>💰 Loss: ${e.loss_amount ? '$' + e.loss_amount.toLocaleString() : 'Not specified'}</span>
-                            <span>📍 Item: ${e.loss_item}</span>
-                        </div>
-                        <p class="text-xs text-slate-500 italic">Click to view full details and decide...</p>
-                    </div>
-                `;
+        // Switch tabs
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.add('hidden');
             });
+
+            // Remove active from all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-green-500', 'text-green-400');
+                btn.classList.add('border-transparent', 'text-slate-400');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+
+            // Set active button
+            event.target.classList.remove('border-transparent', 'text-slate-400');
+            event.target.classList.add('border-green-500', 'text-green-400');
+
+            // Reload data if needed
+            if (tabName === 'live') loadLiveEvents();
+            if (tabName === 'pending') loadPendingEvents();
+            if (tabName === 'deleted') loadDeletedEvents();
+            if (tabName === 'imposters') loadImposters();
+            if (tabName === 'reporters') loadReporters();
         }
 
-        async function viewEventDetails(eventId) {
-            currentEventId = eventId;
+        // Helper: Format date
+        function formatDate(date) {
+            return new Date(date).toLocaleString();
+        }
+
+        // Helper: Calculate days since
+        function daysSince(date) {
+            const days = Math.floor((new Date() - new Date(date)) / (1000 * 60 * 60 * 24));
+            return days > 0 ? days + ' days' : 'Today';
+        }
+
+        // Helper: Truncate text
+        function truncate(text, length) {
+            return text.length > length ? text.substring(0, length) + '...' : text;
+        }
+
+        // Load Live Events
+        async function loadLiveEvents() {
             try {
-                const res = await fetch(`/api/admin/events/${eventId}/details`);
-                const data = await res.json();
-                
-                if (!data.event) {
-                    alert('Event not found');
+                const res = await fetch('/api/admin/events/live');
+                const events = await res.json();
+                const container = document.getElementById('live-events');
+
+                if (!Array.isArray(events) || events.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No live events at this time</div>';
                     return;
                 }
 
-                const event = data.event;
-                const phones = data.phones || [];
-                const identifiers = data.identifiers || [];
-                const profile = data.profile;
+                container.innerHTML = events.map(e => `
+                    <div onclick="viewEventDetails('${e._id}', 'live')" class="bg-gradient-to-br from-green-900/30 to-slate-800 border border-green-700/50 rounded-lg p-5 cursor-pointer hover:border-green-500 transition shadow-lg">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-bold text-green-400">${e.scam_type}</h3>
+                                <p class="text-xs text-slate-400">Live since: ${daysSince(e.approved_at)}</p>
+                            </div>
+                            <span class="bg-green-500/20 text-green-400 text-xs px-3 py-1 rounded-full border border-green-500/30 font-semibold">LIVE</span>
+                        </div>
+                        <p class="text-sm text-slate-300 mb-3">${truncate(e.description, 100)}</p>
+                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                            <div>💰 Loss: ৳${e.loss_amount?.toLocaleString() || '0'}</div>
+                            <div>📝 ${e.loss_item}</div>
+                            <div>👤 ${e.imposter_name}</div>
+                            <div>📋 ${e.reporter_name}</div>
+                        </div>
+                        <div class="text-xs text-slate-500">Approved: ${formatDate(e.approved_at)}</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading live events:', err);
+            }
+        }
 
-                let phonesList = phones.map(p => p.phone_number).join(', ') || 'None recorded';
-                let profileInfo = profile ? `<strong>${profile.display_name}</strong> (ID: ${profile._id})` : 'New profile (will be created if approved)';
+        // Load Pending Events
+        async function loadPendingEvents() {
+            try {
+                const res = await fetch('/api/admin/moderation-queue');
+                const events = await res.json();
+                const container = document.getElementById('pending-events');
+
+                if (!Array.isArray(events) || events.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No pending events</div>';
+                    return;
+                }
+
+                container.innerHTML = events.map(e => `
+                    <div onclick="viewEventDetails('${e._id}', 'pending')" class="bg-gradient-to-br from-amber-900/30 to-slate-800 border border-amber-700/50 rounded-lg p-5 cursor-pointer hover:border-amber-500 transition shadow-lg">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-bold text-amber-400">${e.scam_type}</h3>
+                                <p class="text-xs text-slate-400">Submitted: ${formatDate(e.submitted_at)}</p>
+                            </div>
+                            <span class="bg-amber-500/20 text-amber-400 text-xs px-3 py-1 rounded-full border border-amber-500/30 font-semibold">PENDING</span>
+                        </div>
+                        <p class="text-sm text-slate-300 mb-3">${truncate(e.description, 100)}</p>
+                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                            <div>💰 Loss: ৳${e.loss_amount?.toLocaleString() || '0'}</div>
+                            <div>📝 ${e.loss_item}</div>
+                            <div>👤 ${e.imposter_name}</div>
+                            <div>📋 ${e.reporter_name}</div>
+                        </div>
+                        <div class="text-xs text-slate-500">Awaiting action...</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading pending events:', err);
+            }
+        }
+
+        // Load Deleted Events
+        async function loadDeletedEvents() {
+            try {
+                const res = await fetch('/api/admin/events/rejected');
+                const events = await res.json();
+                const container = document.getElementById('deleted-events');
+
+                if (!Array.isArray(events) || events.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No deleted events</div>';
+                    return;
+                }
+
+                container.innerHTML = events.map(e => `
+                    <div onclick="viewEventDetails('${e._id}', 'deleted')" class="bg-gradient-to-br from-red-900/30 to-slate-800 border border-red-700/50 rounded-lg p-5 cursor-pointer hover:border-red-500 transition shadow-lg">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="text-lg font-bold text-red-400">${e.scam_type}</h3>
+                                <p class="text-xs text-slate-400">Rejected: ${daysSince(e.rejected_at)} ago</p>
+                            </div>
+                            <span class="bg-red-500/20 text-red-400 text-xs px-3 py-1 rounded-full border border-red-500/30 font-semibold">REJECTED</span>
+                        </div>
+                        <p class="text-sm text-slate-300 mb-3">${truncate(e.description, 100)}</p>
+                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                            <div>💰 Loss: ৳${e.loss_amount?.toLocaleString() || '0'}</div>
+                            <div>📝 ${e.loss_item}</div>
+                            <div>👤 ${e.imposter_name}</div>
+                            <div>📋 ${e.reporter_name}</div>
+                        </div>
+                        <div class="text-xs text-red-500">Reason: ${e.rejection_reason || 'Not specified'}</div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading deleted events:', err);
+            }
+        }
+
+        // Load Imposters
+        async function loadImposters() {
+            try {
+                const res = await fetch('/api/admin/imposters');
+                const imposters = await res.json();
+                const container = document.getElementById('imposters-list');
+
+                if (!Array.isArray(imposters) || imposters.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No fraudsters in database</div>';
+                    return;
+                }
+
+                container.innerHTML = imposters.map(imposter => `
+                    <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-purple-500 transition">
+                        <h3 class="text-lg font-bold text-purple-400 mb-2">${imposter.name}</h3>
+                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                            <div>📱 ${imposter.phone || 'N/A'}</div>
+                            <div>🎯 Scams: ${imposter.scam_count || 0}</div>
+                            <div>💰 Total Loss: ৳${imposter.total_loss?.toLocaleString() || '0'}</div>
+                            <div>📍 Last Active: ${imposter.last_active ? formatDate(imposter.last_active) : 'N/A'}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading imposters:', err);
+            }
+        }
+
+        // Load Reporters
+        async function loadReporters() {
+            try {
+                const res = await fetch('/api/admin/reporters');
+                const reporters = await res.json();
+                const container = document.getElementById('reporters-list');
+
+                if (!Array.isArray(reporters) || reporters.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No reporters yet</div>';
+                    return;
+                }
+
+                container.innerHTML = reporters.map(reporter => `
+                    <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-blue-500 transition">
+                        <h3 class="text-lg font-bold text-blue-400 mb-2">${reporter.name}</h3>
+                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                            <div>📱 ${reporter.phone || 'N/A'}</div>
+                            <div>📧 ${reporter.email || 'N/A'}</div>
+                            <div>📝 Reports: ${reporter.report_count || 0}</div>
+                            <div>✅ Approved: ${reporter.approved_count || 0}</div>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">First Report: ${reporter.first_report ? formatDate(reporter.first_report) : 'N/A'}</p>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Error loading reporters:', err);
+            }
+        }
+
+        // View Event Details
+        async function viewEventDetails(eventId, status) {
+            currentEventId = eventId;
+            currentEventStatus = status;
+
+            try {
+                const res = await fetch(`/api/admin/events/${eventId}/details`);
+                const data = await res.json();
+                const event = data.event;
 
                 const modalContent = `
                     <div class="space-y-6">
-                        <!-- Main Event Information -->
+                        <!-- Imposter Details -->
                         <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">Event Information</h3>
-                            <div class="grid grid-cols-2 gap-4 text-sm">
+                            <h3 class="text-sm font-bold uppercase text-purple-400 mb-3">👤 Imposter Details</h3>
+                            <div class="grid grid-cols-2 gap-4 text-sm mb-4">
                                 <div>
-                                    <p class="text-slate-400 text-xs">Scam Type</p>
+                                    <p class="text-slate-400 text-xs">Name</p>
+                                    <p class="text-white font-semibold">${event.imposter_name}</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-400 text-xs">Nickname</p>
+                                    <p class="text-slate-300">${event.imposter_nickname || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-400 text-xs">Phone</p>
+                                    <p class="text-slate-300 font-mono">${event.imposter_phone}</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-400 text-xs">NID</p>
+                                    <p class="text-slate-300">${event.imposter_nid || 'N/A'}</p>
+                                </div>
+                                <div class="col-span-2">
+                                    <p class="text-slate-400 text-xs">Address</p>
+                                    <p class="text-slate-300">${event.imposter_address || 'N/A'}</p>
+                                </div>
+                                <div class="col-span-2">
+                                    <p class="text-slate-400 text-xs">Social Media</p>
+                                    <p class="text-slate-300">${event.social_media_account ? `<a href="${event.social_media_account}" target="_blank" class="text-blue-400 hover:underline">${event.social_media_account}</a>` : 'N/A'}</p>
+                                </div>
+                                ${event.alt_phones && event.alt_phones.length > 0 ? `
+                                    <div class="col-span-2">
+                                        <p class="text-slate-400 text-xs">Alternative Phones</p>
+                                        <p class="text-slate-300 font-mono">${event.alt_phones.join(', ')}</p>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <!-- Scam Details -->
+                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
+                            <h3 class="text-sm font-bold uppercase text-green-400 mb-3">🎯 Scam Details</h3>
+                            <div class="grid grid-cols-2 gap-4 text-sm mb-4">
+                                <div>
+                                    <p class="text-slate-400 text-xs">Type</p>
                                     <p class="text-white font-semibold">${event.scam_type}</p>
                                 </div>
                                 <div>
-                                    <p class="text-slate-400 text-xs">Loss Amount</p>
-                                    <p class="text-red-400 font-semibold">${event.loss_amount ? '$' + event.loss_amount.toLocaleString() : 'Not specified'}</p>
+                                    <p class="text-slate-400 text-xs">Loss Item</p>
+                                    <p class="text-slate-300">${event.loss_item}</p>
                                 </div>
                                 <div>
-                                    <p class="text-slate-400 text-xs">Loss Item</p>
-                                    <p class="text-white">${event.loss_item}</p>
+                                    <p class="text-slate-400 text-xs">Loss Amount</p>
+                                    <p class="text-red-400 font-semibold">৳${event.loss_amount?.toLocaleString() || '0'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-400 text-xs">Location</p>
+                                    <p class="text-slate-300">${event.scam_location || 'N/A'}</p>
                                 </div>
                                 <div>
                                     <p class="text-slate-400 text-xs">GD Number</p>
                                     <p class="text-slate-300">${event.gd_number || 'N/A'}</p>
                                 </div>
-                                <div class="col-span-2">
-                                    <p class="text-slate-400 text-xs">Address</p>
-                                    <p class="text-slate-300">${event.address || 'Not provided'}</p>
-                                </div>
+                            </div>
+                            <div>
+                                <p class="text-slate-400 text-xs mb-2">Description</p>
+                                <p class="text-slate-200 text-sm leading-relaxed bg-slate-800/50 p-3 rounded border border-slate-700">${event.description}</p>
                             </div>
                         </div>
 
-                        <!-- Description -->
+                        <!-- Reporter Details -->
                         <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">Incident Description</h3>
-                            <p class="text-slate-200 text-sm leading-relaxed">${event.description}</p>
-                        </div>
-
-                        <!-- Reporter Information -->
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">Reporter Information</h3>
+                            <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">📋 Reporter Details</h3>
                             <div class="grid grid-cols-2 gap-4 text-sm">
                                 <div>
-                                    <p class="text-slate-400 text-xs">Reporter Name</p>
-                                    <p class="text-white">${event.reporter_name || 'Anonymous'}</p>
+                                    <p class="text-slate-400 text-xs">Name</p>
+                                    <p class="text-white font-semibold">${event.reporter_name}</p>
                                 </div>
                                 <div>
                                     <p class="text-slate-400 text-xs">Visibility</p>
-                                    <p class="text-slate-300 capitalize">${event.reporter_visibility || 'Not specified'}</p>
+                                    <p class="text-slate-300 capitalize">${event.reporter_visibility || 'public'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-400 text-xs">Phone</p>
+                                    <p class="text-slate-300">${event.reporter_phone || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-slate-400 text-xs">Email</p>
+                                    <p class="text-slate-300">${event.reporter_email || 'N/A'}</p>
+                                </div>
+                                <div class="col-span-2">
+                                    <p class="text-slate-400 text-xs">Submitted</p>
+                                    <p class="text-slate-300">${formatDate(event.submitted_at)}</p>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Contact Information -->
+                        <!-- Event Status -->
                         <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">Contact Information</h3>
-                            <div>
-                                <p class="text-slate-400 text-xs mb-2">Phone Numbers</p>
-                                <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                                    <p class="text-white font-mono text-sm">${phonesList}</p>
+                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">📊 Event Status</h3>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p class="text-slate-400 text-xs">Status</p>
+                                    <p class="text-white font-semibold capitalize">${event.status}</p>
                                 </div>
-                            </div>
-                            ${identifiers.length > 0 ? `
-                                <div class="mt-3">
-                                    <p class="text-slate-400 text-xs mb-2">Identifiers</p>
-                                    <div class="space-y-2">
-                                        ${identifiers.map(id => `
-                                            <div class="bg-slate-800 p-2 rounded border border-slate-700 text-sm">
-                                                <p class="text-slate-400 text-xs">${id.identifier_type}</p>
-                                                <p class="text-white font-mono">${id.identifier_value}</p>
-                                            </div>
-                                        `).join('')}
+                                ${event.approved_at ? `
+                                    <div>
+                                        <p class="text-slate-400 text-xs">Approved</p>
+                                        <p class="text-green-400">${formatDate(event.approved_at)}</p>
                                     </div>
-                                </div>
-                            ` : ''}
-                        </div>
-
-                        <!-- Profile Matching -->
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">Profile Status</h3>
-                            <div class="bg-slate-800 p-3 rounded border border-slate-700">
-                                <p class="text-sm">${profileInfo}</p>
-                            </div>
-                        </div>
-
-                        <!-- Timeline -->
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">Timeline</h3>
-                            <div class="text-xs text-slate-400 space-y-1">
-                                <p>📝 Submitted: ${new Date(event.submitted_at).toLocaleString()}</p>
-                                ${event.approved_at ? `<p>✅ Approved: ${new Date(event.approved_at).toLocaleString()}</p>` : ''}
-                                ${event.rejected_at ? `<p>❌ Rejected: ${new Date(event.rejected_at).toLocaleString()}</p>` : ''}
+                                ` : ''}
+                                ${event.rejected_at ? `
+                                    <div>
+                                        <p class="text-slate-400 text-xs">Rejected</p>
+                                        <p class="text-red-400">${formatDate(event.rejected_at)}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-slate-400 text-xs">Reason</p>
+                                        <p class="text-slate-300">${event.rejection_reason || 'N/A'}</p>
+                                    </div>
+                                ` : ''}
                             </div>
                         </div>
                     </div>
                 `;
 
                 document.getElementById('modal-content').innerHTML = modalContent;
+
+                // Set action buttons based on status
+                let actions = '<button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>';
+
+                if (status === 'pending') {
+                    actions = `
+                        <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>
+                        <button onclick="editRequest()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit Request</button>
+                        <button onclick="rejectEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Reject</button>
+                        <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Approve</button>
+                    `;
+                } else if (status === 'live') {
+                    actions = `
+                        <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>
+                        <button onclick="editRequest()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit Request</button>
+                        <button onclick="deleteEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Delete</button>
+                    `;
+                } else if (status === 'deleted') {
+                    actions = `
+                        <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>
+                        <button onclick="editRequest()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit Request</button>
+                        <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Re-approve</button>
+                    `;
+                }
+
+                document.getElementById('modal-actions').innerHTML = actions;
                 document.getElementById('detail-modal').classList.remove('hidden');
             } catch (err) {
                 alert('Error loading event details: ' + err.message);
             }
         }
 
-        async function doModerate(action) {
-            if (!currentEventId) return;
-            
+        // Approve Event
+        async function approveEvent() {
             try {
-                const res = await fetch(`/api/admin/events/${currentEventId}/${action}`, {
+                const res = await fetch(`/api/admin/events/${currentEventId}/approve`, {
                     method: 'PATCH',
                     headers: { 'Authorization': token }
                 });
                 const data = await res.json();
                 alert(data.message);
                 closeModal();
-                fetchQueue();
+                loadAllData();
             } catch (err) {
                 alert('Error: ' + err.message);
             }
         }
 
+        // Reject Event
+        async function rejectEvent() {
+            const reason = prompt('Enter rejection reason:');
+            if (!reason) return;
+
+            try {
+                const res = await fetch(`/api/admin/events/${currentEventId}/reject`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token
+                    },
+                    body: JSON.stringify({ rejection_reason: reason })
+                });
+                const data = await res.json();
+                alert(data.message);
+                closeModal();
+                loadAllData();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // Delete Event
+        async function deleteEvent() {
+            if (!confirm('Are you sure you want to delete this event?')) return;
+
+            try {
+                const res = await fetch(`/api/admin/events/${currentEventId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': token }
+                });
+                const data = await res.json();
+                alert(data.message);
+                closeModal();
+                loadAllData();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // Edit Request
+        function editRequest() {
+            alert('Edit request feature coming soon. Reporter will be notified to update their submission.');
+        }
+
+        // Close Modal
         function closeModal() {
             document.getElementById('detail-modal').classList.add('hidden');
             currentEventId = null;
+            currentEventStatus = null;
         }
 
         // Close modal when clicking outside

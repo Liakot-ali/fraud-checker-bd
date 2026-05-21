@@ -241,6 +241,7 @@ app.post('/api/events', async (req, res) => {
             imposter_nickname,
             imposter_nid,
             imposter_address,
+            social_media_account,
             scam_type,
             loss_item,
             loss_amount,
@@ -333,6 +334,7 @@ app.post('/api/events', async (req, res) => {
             imposter_nickname: imposter_nickname || '',
             imposter_nid: imposter_nid || '',
             imposter_address: imposter_address || '',
+            social_media_account: social_media_account || '',
             imposter_picture: imposterPictureData,
 
             // Scam details
@@ -577,6 +579,242 @@ app.patch('/api/admin/events/:id/:action', async (req, res) => {
         } else {
             res.json({ message: "Submission rejected and flagged away from public search indices." });
         }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ NEW ADMIN ENDPOINTS FOR DASHBOARD ============
+
+// GET /api/admin/events/live - Get all live (approved) fraud events
+app.get('/api/admin/events/live', async (req, res) => {
+    try {
+        const fraudEvents = db.collection('fraud_events');
+        const events = await fraudEvents.find({ status: 'approved' }).toArray();
+        res.json(events);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/admin/events/rejected - Get all rejected fraud events
+app.get('/api/admin/events/rejected', async (req, res) => {
+    try {
+        const fraudEvents = db.collection('fraud_events');
+        const events = await fraudEvents.find({ status: 'rejected' }).toArray();
+        res.json(events);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PATCH /api/admin/events/:id/approve - Approve pending event
+app.patch('/api/admin/events/:id/approve', async (req, res) => {
+    try {
+        const eventId = new ObjectId(req.params.id);
+        const timestamp = new Date().toISOString();
+        const fraudEvents = db.collection('fraud_events');
+        const eventPhones = db.collection('event_phones');
+        const identifiersCollection = db.collection('identifiers');
+        const cheaterProfiles = db.collection('cheater_profiles');
+
+        const event = await fraudEvents.findOne({ _id: eventId });
+        if (!event) {
+            return res.status(404).json({ error: 'Event not found' });
+        }
+
+        // Update event to approved
+        await fraudEvents.updateOne(
+            { _id: eventId },
+            {
+                $set: {
+                    status: 'approved',
+                    approved_at: timestamp
+                }
+            }
+        );
+
+        // Profile creation logic
+        const phoneData = await eventPhones.findOne({ event_id: eventId });
+        if (phoneData) {
+            const normPhone = normalize(phoneData.phone_number);
+
+            // Check if profile exists
+            const matchingIdentifier = await identifiersCollection.findOne({
+                normalized_value: normPhone,
+                profile_id: { $ne: null }
+            });
+
+            if (!matchingIdentifier) {
+                // Create new profile
+                const fraudsterName = event.imposter_name || 'Unidentified Fraudster';
+                const newProfile = await cheaterProfiles.insertOne({
+                    display_name: fraudsterName,
+                    normalized_name: normalize(fraudsterName),
+                    profile_status: 'verified',
+                    created_at: timestamp,
+                    updated_at: timestamp
+                });
+
+                const newProfileId = newProfile.insertedId;
+
+                // Link event to profile
+                await fraudEvents.updateOne(
+                    { _id: eventId },
+                    { $set: { profile_id: newProfileId } }
+                );
+
+                // Add phone identifier
+                await identifiersCollection.insertOne({
+                    profile_id: newProfileId,
+                    identifier_type: 'phone',
+                    identifier_value: phoneData.phone_number,
+                    normalized_value: normPhone,
+                    is_primary: true
+                });
+
+                // Add name identifier
+                await identifiersCollection.insertOne({
+                    profile_id: newProfileId,
+                    identifier_type: 'imposter_name',
+                    identifier_value: fraudsterName,
+                    normalized_value: normalize(fraudsterName),
+                    is_primary: true
+                });
+            } else {
+                // Link to existing profile
+                await fraudEvents.updateOne(
+                    { _id: eventId },
+                    { $set: { profile_id: matchingIdentifier.profile_id } }
+                );
+            }
+        }
+
+        res.json({ message: '✓ Event approved and profile created/linked successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PATCH /api/admin/events/:id/reject - Reject pending event with reason
+app.patch('/api/admin/events/:id/reject', async (req, res) => {
+    try {
+        const eventId = new ObjectId(req.params.id);
+        const { rejection_reason } = req.body;
+        const timestamp = new Date().toISOString();
+        const fraudEvents = db.collection('fraud_events');
+
+        await fraudEvents.updateOne(
+            { _id: eventId },
+            {
+                $set: {
+                    status: 'rejected',
+                    rejected_at: timestamp,
+                    rejection_reason: rejection_reason || 'No reason specified'
+                }
+            }
+        );
+
+        res.json({ message: '✓ Event rejected successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE /api/admin/events/:id - Delete live event
+app.delete('/api/admin/events/:id', async (req, res) => {
+    try {
+        const eventId = new ObjectId(req.params.id);
+        const timestamp = new Date().toISOString();
+        const fraudEvents = db.collection('fraud_events');
+
+        const event = await fraudEvents.findOne({ _id: eventId });
+        if (!event) {
+            return res.status(404).json({ error: 'Event not found' });
+        }
+
+        // Mark as deleted (rejected)
+        await fraudEvents.updateOne(
+            { _id: eventId },
+            {
+                $set: {
+                    status: 'rejected',
+                    rejected_at: timestamp,
+                    rejection_reason: 'Admin deletion - live event removed'
+                }
+            }
+        );
+
+        res.json({ message: '✓ Event deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/admin/imposters - Get list of all fraudsters
+app.get('/api/admin/imposters', async (req, res) => {
+    try {
+        const cheaterProfiles = db.collection('cheater_profiles');
+        const fraudEvents = db.collection('fraud_events');
+        const identifiersCollection = db.collection('identifiers');
+
+        const profiles = await cheaterProfiles.find({}).toArray();
+
+        // Enrich with event stats
+        const enriched = await Promise.all(profiles.map(async (profile) => {
+            const events = await fraudEvents.find({ profile_id: profile._id, status: 'approved' }).toArray();
+            const totalLoss = events.reduce((sum, e) => sum + (e.loss_amount || 0), 0);
+            
+            // Get phone from identifiers
+            const phoneIdentifier = await identifiersCollection.findOne({ profile_id: profile._id, identifier_type: 'phone' });
+            const phone = phoneIdentifier ? phoneIdentifier.identifier_value : 'N/A';
+
+            return {
+                name: profile.display_name,
+                phone: phone,
+                scam_count: events.length,
+                total_loss: totalLoss,
+                last_active: events.length > 0 ? Math.max(...events.map(e => new Date(e.approved_at))).toISOString() : null
+            };
+        }));
+
+        res.json(enriched);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/admin/reporters - Get list of all reporters
+app.get('/api/admin/reporters', async (req, res) => {
+    try {
+        const fraudEvents = db.collection('fraud_events');
+
+        // Get all unique reporters
+        const events = await fraudEvents.find({}).toArray();
+        
+        const reporterMap = {};
+        events.forEach(event => {
+            const name = event.reporter_name || 'Anonymous';
+            if (!reporterMap[name]) {
+                reporterMap[name] = {
+                    name,
+                    phone: event.reporter_phone || 'N/A',
+                    email: event.reporter_email || 'N/A',
+                    report_count: 0,
+                    approved_count: 0,
+                    first_report: event.submitted_at
+                };
+            }
+            reporterMap[name].report_count++;
+            if (event.status === 'approved') {
+                reporterMap[name].approved_count++;
+            }
+            if (new Date(event.submitted_at) < new Date(reporterMap[name].first_report)) {
+                reporterMap[name].first_report = event.submitted_at;
+            }
+        });
+
+        res.json(Object.values(reporterMap));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
