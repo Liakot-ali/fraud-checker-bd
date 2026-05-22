@@ -3,279 +3,332 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fraud-checker-bd | Global Verification Engine</title>
+    <title>Fraud-Checker-BD | Protect Yourself From Scams</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
-    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
-        <a href="/" class="text-xl font-bold text-red-600 tracking-tight">Fraud-Checker-BD</a>
+    <!-- Navigation -->
+    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-40">
+        <a href="/" class="text-2xl font-black text-red-600 tracking-tight">Fraud-Checker-BD</a>
         <div class="space-x-4">
-            <a href="/submit.html" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">Report an Incident</a>
             <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a>
         </div>
     </nav>
 
-    <main class="max-w-5xl mx-auto mt-12 px-4">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-extrabold tracking-tight sm:text-4xl">Search Verified Fraud Registry</h1>
-            <p class="mt-3 text-slate-500">Query names, phone numbers, scam descriptions, amounts, or any incident details.</p>
+    <!-- Hero Section -->
+    <section class="bg-gradient-to-br from-red-50 via-white to-orange-50 border-b-2 border-red-200 py-16 px-4">
+        <div class="max-w-6xl mx-auto">
+            <div class="text-center mb-12">
+                <h1 class="text-5xl font-black tracking-tight text-slate-900 mb-4">Protect Yourself From Fraud</h1>
+                <p class="text-xl text-slate-600 mb-2">A Community-Driven Fraud Database for Bangladesh</p>
+                <p class="text-slate-500">Check if someone is a known scammer before trusting them with your money or personal information.</p>
+            </div>
+
+            <!-- Key Features -->
+            <div class="grid md:grid-cols-3 gap-6 mb-12">
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                    <div class="text-3xl mb-3">🔍</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Verified Database</h3>
+                    <p class="text-sm text-slate-600">Check names, phone numbers, and scam details from verified reports</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                    <div class="text-3xl mb-3">🛡️</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Community Protection</h3>
+                    <p class="text-sm text-slate-600">Real victims sharing their experiences to prevent others from being scammed</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                    <div class="text-3xl mb-3">📢</div>
+                    <h3 class="font-bold text-slate-900 mb-2">Report & Help</h3>
+                    <p class="text-sm text-slate-600">Share your experience and help others identify dangerous scammers</p>
+                </div>
+            </div>
+
+            <!-- CTA Section -->
+            <div class="bg-gradient-to-r from-red-600 to-orange-600 rounded-2xl p-8 text-center shadow-lg">
+                <h2 class="text-2xl font-bold text-white mb-3">Are you a victim of a scam?</h2>
+                <p class="text-red-100 mb-6">Report the incident and help protect others from the same fraudster. Your report could save someone from losing their life savings.</p>
+                <a href="/submit.html" class="inline-block bg-white text-red-600 px-8 py-3 rounded-xl font-bold hover:bg-red-50 transition shadow-lg">Report an Incident Now</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto mt-12 px-4 pb-12">
+        <!-- Search Section -->
+        <div class="mb-12">
+            <h2 class="text-3xl font-bold text-slate-900 mb-4 text-center">Search Fraud Database</h2>
+            <p class="text-slate-600 text-center mb-6">Search by imposter name, nickname, phone number, NID, scam type, location, and more</p>
+            
+            <div class="flex gap-2 max-w-3xl mx-auto mb-6">
+                <input type="text" id="query" placeholder="Enter name, phone, NID, location, or scam type..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none shadow-sm">
+                <button id="search-btn" onclick="performSearch()" class="bg-red-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-sm flex items-center gap-2">
+                    <span id="search-btn-text">Search</span>
+                    <div id="search-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                </button>
+            </div>
+
+            <!-- Quick Info -->
+            <div class="text-center text-sm text-slate-500">
+                <p>💡 Search for: imposter name, nickname, phone, NID, GD number, scam type, description, location</p>
+            </div>
         </div>
 
-        <div class="flex gap-2 max-w-2xl mx-auto">
-            <input type="text" id="query" placeholder="Type name, phone number, description, amount..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none shadow-sm">
-            <button onclick="performSearch()" class="bg-slate-900 text-white px-6 py-3 rounded-xl font-medium hover:bg-slate-800 transition">Search</button>
+        <!-- Results Area -->
+        <div id="results-container" class="hidden">
+            <div id="results-header" class="mb-6">
+                <h3 id="results-title" class="text-2xl font-bold text-slate-900"></h3>
+            </div>
+            <div id="results" class="grid gap-6"></div>
         </div>
 
-        <div id="results" class="mt-12 space-y-4"></div>
-        <div id="profile-detail" class="mt-12 p-6 bg-white border border-slate-200 rounded-xl hidden shadow-sm"></div>
+        <!-- No Search Message -->
+        <div id="no-search-message" class="text-center py-12">
+            <div class="text-6xl mb-4">🔍</div>
+            <h3 class="text-2xl font-bold text-slate-900 mb-2">Start Searching to Find Fraud Information</h3>
+            <p class="text-slate-600 mb-6">Use the search box above to look for known scammers and fraudsters in our verified database.</p>
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 max-w-md mx-auto">
+                <p class="text-sm text-slate-700"><strong>Haven't found what you're looking for?</strong></p>
+                <p class="text-sm text-slate-600 mt-2">If you know of a scammer not in our database, report them now and help others stay safe.</p>
+                <a href="/submit.html" class="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">Add an Incident Report</a>
+            </div>
+        </div>
+
+        <!-- No Results Message -->
+        <div id="no-results-message" class="hidden text-center py-12">
+            <div class="text-6xl mb-4">❓</div>
+            <h3 class="text-2xl font-bold text-slate-900 mb-2">No Matching Fraud Reports Found</h3>
+            <p class="text-slate-600 mb-6">That's good news! We haven't found any verified fraud reports matching your search.</p>
+            <div class="bg-green-50 border border-green-200 rounded-xl p-6 max-w-md mx-auto">
+                <p class="text-sm text-slate-700"><strong>Do you know of this person as a scammer?</strong></p>
+                <p class="text-sm text-slate-600 mt-2">Help the community by reporting your experience. Your report could prevent others from being scammed.</p>
+                <a href="/submit.html" class="inline-block mt-4 bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition">Report This Incident</a>
+            </div>
+        </div>
     </main>
 
-    <!-- Event Detail Modal -->
-    <div id="event-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div id="modal-content" class="p-6 space-y-6"></div>
+    <!-- Event Detail Modal (for quick view) -->
+    <div id="event-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-2xl w-full my-8 shadow-2xl">
+            <div class="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-slate-900">Fraud Event Details</h2>
+                <button onclick="closeEventModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">×</button>
+            </div>
+            <div id="modal-content" class="p-6 space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto"></div>
+            <div class="border-t border-slate-200 p-6 flex gap-2">
+                <button onclick="closeEventModal()" class="flex-1 bg-slate-200 text-slate-900 py-2 rounded-lg font-semibold hover:bg-slate-300 transition">Close</button>
+                <button id="view-full-button" onclick="viewFullEvent()" class="flex-1 bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700 transition">View Full Details</button>
+            </div>
         </div>
     </div>
 
     <script>
+        let currentEventId = null;
+
+        // Perform search with updated fields
         async function performSearch() {
-            const q = document.getElementById('query').value;
-            if (!q.trim()) {
+            const q = document.getElementById('query').value.trim();
+            if (!q) {
                 alert('Please enter a search term');
                 return;
             }
 
+            // Show loading state
+            const searchBtn = document.getElementById('search-btn');
+            const searchBtnText = document.getElementById('search-btn-text');
+            const searchSpinner = document.getElementById('search-spinner');
+            
+            searchBtn.disabled = true;
+            searchBtnText.classList.add('hidden');
+            searchSpinner.classList.remove('hidden');
+
             try {
+                // Updated search endpoint to search specific fields
                 const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
                 const events = await res.json();
                 
+                const resultsContainer = document.getElementById('results-container');
+                const noSearchMsg = document.getElementById('no-search-message');
+                const noResultsMsg = document.getElementById('no-results-message');
                 const resultsDiv = document.getElementById('results');
-                document.getElementById('profile-detail').classList.add('hidden');
+                const resultsTitle = document.getElementById('results-title');
+
+                // Hide no-search message
+                noSearchMsg.classList.add('hidden');
 
                 if (!events || events.length === 0) {
-                    resultsDiv.innerHTML = '<div class="text-center"><h3 class="text-lg font-bold mb-2 text-slate-700">Search Results</h3><p class="text-slate-400 text-sm">No confirmed matching fraud incidents found in database.</p></div>';
+                    resultsContainer.classList.add('hidden');
+                    noResultsMsg.classList.remove('hidden');
+                } else {
+                    // Show results
+                    resultsContainer.classList.remove('hidden');
+                    noResultsMsg.classList.add('hidden');
+                    resultsTitle.textContent = `Found ${events.length} Fraud Report(s)`;
+
+                    resultsDiv.innerHTML = events.map(e => {
+                        const amount = e.loss_amount ? `৳${e.loss_amount.toLocaleString()}` : 'Not specified';
+                        const description = (e.description || '').substring(0, 100) + (e.description?.length > 100 ? '...' : '');
+                        const location = e.scam_location || e.address || 'Location not provided';
+                        
+                        return `
+                            <div onclick="viewEventDetails('${e._id}')" class="bg-white border border-slate-200 rounded-xl p-6 cursor-pointer hover:border-red-500 hover:shadow-lg transition shadow-sm">
+                                <div class="flex gap-4 mb-4">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-red-400 to-orange-500 flex items-center justify-center text-white text-2xl font-bold overflow-hidden border-2 border-red-200">
+                                            ${(e.imposter_name || 'Unknown').charAt(0).toUpperCase()}
+                                        </div>
+                                    </div>
+                                    <div class="flex-grow">
+                                        <h3 class="text-lg font-bold text-slate-900">${e.scam_type || 'Unknown Scam'}</h3>
+                                        <p class="text-sm text-slate-600 mt-1">👤 <strong>${e.imposter_name || 'Unknown Imposter'}</strong></p>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-bold border border-red-200">VERIFIED</span>
+                                    </div>
+                                </div>
+
+                            <p class="text-sm text-slate-700 mb-4 line-clamp-2">${description}</p>
+
+                            <div class="grid grid-cols-3 gap-3 mb-4">
+                                <div class="bg-red-50 p-3 rounded-lg border border-red-100">
+                                    <p class="text-xs text-red-600 font-semibold">Loss Amount</p>
+                                    <p class="text-sm font-bold text-red-700">${amount}</p>
+                                </div>
+                                <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                    <p class="text-xs text-blue-600 font-semibold">Item</p>
+                                    <p class="text-sm font-bold text-blue-700">${e.loss_item || 'N/A'}</p>
+                                </div>
+                                <div class="bg-green-50 p-3 rounded-lg border border-green-100">
+                                    <p class="text-xs text-green-600 font-semibold">Location</p>
+                                    <p class="text-sm font-bold text-green-700 truncate">${location}</p>
+                                </div>
+                            </div>
+
+                            <div class="text-xs text-slate-500 flex justify-between items-center">
+                                <span>📱 ${e.imposter_phone || 'Phone not shown'}</span>
+                                <span>Click for details →</span>
+                            </div>
+                        </div>
+                    `;
+                    }).join('');
+                }
+            } catch (err) {
+                alert('Search error: ' + err.message);
+                console.error(err);
+            } finally {
+                searchBtn.disabled = true;
+                searchBtnText.classList.remove('hidden');
+                searchSpinner.classList.add('hidden');
+            }
+        } 
+
+        // View event details in modal
+        async function viewEventDetails(eventId) {
+            currentEventId = eventId;
+            try {
+                const res = await fetch(`/api/events/${eventId}/details`);
+                const data = await res.json();
+                
+                if (!data.event) {
+                    alert('Event not found');
                     return;
                 }
 
-                resultsDiv.innerHTML = `<h3 class="text-lg font-bold mb-4 text-slate-700">Found ${events.length} Matching Incident(s)</h3>`;
+                const event = data.event;
+                const amount = event.loss_amount ? `৳${event.loss_amount.toLocaleString()}` : 'Not specified';
+                const description = event.description || 'No description provided';
+                const location = event.scam_location || event.address || 'Not provided';
+                const phones = event.imposter_phone ? [event.imposter_phone, ...(event.alt_phones || [])].join(', ') : 'Not provided';
+                const reporterInfo = event.reporter_visibility === 'public' ? `${event.reporter_name || 'Anonymous'}` : 'Hidden (Reporter chose not to display)';
 
-                events.forEach(e => {
-                    const phones = e.phones && e.phones.length > 0 ? e.phones.join(', ') : 'Not recorded';
-                    const amount = e.loss_amount ? `BDT ${e.loss_amount.toLocaleString()}` : 'Not specified';
-                    
-                    resultsDiv.innerHTML += `
-                        <div onclick="viewEventModal(${JSON.stringify(e).replace(/"/g, '&quot;')})" class="p-5 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-red-500 hover:shadow-lg transition shadow-sm">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <h4 class="font-bold text-slate-900">${e.profile_name || 'Unknown Fraudster'}</h4>
-                                    <p class="text-xs text-slate-500 mt-1">📅 Reported: ${new Date(e.submitted_at).toLocaleDateString()}</p>
-                                </div>
-                                <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded font-semibold">Verified</span>
+                const modalContent = `
+                    <!-- Imposter Card -->
+                    <div class="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-xl p-6">
+                        <div class="flex items-center gap-4">
+                            <div class="w-20 h-20 rounded-full bg-gradient-to-br from-red-400 to-orange-500 flex items-center justify-center text-white text-3xl font-bold border-2 border-red-300">
+                                ${(event.imposter_name || 'Unknown').charAt(0).toUpperCase()}
                             </div>
-                            
-                            <div class="bg-slate-50 p-3 rounded-lg mb-3 border border-slate-100">
-                                <p class="text-sm font-semibold text-slate-900">${e.scam_type}</p>
-                                <p class="text-xs text-slate-600 mt-1 line-clamp-2">${e.description}</p>
+                            <div>
+                                <h3 class="text-2xl font-bold text-slate-900">${event.imposter_name || 'Unknown Imposter'}</h3>
+                                ${event.imposter_nickname ? `<p class="text-sm text-slate-600">Nickname: ${event.imposter_nickname}</p>` : ''}
+                                <p class="text-xs text-red-600 font-semibold mt-1">🔴 VERIFIED FRAUDSTER</p>
                             </div>
-
-                            <div class="grid grid-cols-2 gap-3 text-xs mb-3">
-                                <div class="bg-blue-50 p-2 rounded border border-blue-100">
-                                    <p class="text-blue-700 font-semibold">${amount}</p>
-                                    <p class="text-blue-600 text-xs">Loss Amount</p>
-                                </div>
-                                <div class="bg-purple-50 p-2 rounded border border-purple-100">
-                                    <p class="text-purple-700 font-semibold">${e.loss_item}</p>
-                                    <p class="text-purple-600 text-xs">Item Lost</p>
-                                </div>
-                                <div class="bg-green-50 p-2 rounded border border-green-100">
-                                    <p class="text-green-700 font-semibold text-xs truncate">${phones}</p>
-                                    <p class="text-green-600 text-xs">Phone</p>
-                                </div>
-                                <div class="bg-orange-50 p-2 rounded border border-orange-100">
-                                    <p class="text-orange-700 font-semibold">${e.address || 'N/A'}</p>
-                                    <p class="text-orange-600 text-xs">Location</p>
-                                </div>
-                            </div>
-
-                            <p class="text-xs text-slate-500">Click to view full profile and related incidents</p>
                         </div>
-                    `;
-                });
-            } catch (err) {
-                alert('Search error: ' + err.message);
-            }
-        }
-
-        function viewEventModal(event) {
-            const phones = event.phones && event.phones.length > 0 ? event.phones.join(', ') : 'Not recorded';
-            const amount = event.loss_amount ? `BDT ${event.loss_amount.toLocaleString()}` : 'Not specified';
-
-            const modalContent = `
-                <div class="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-slate-900">Incident Details</h2>
-                    <button onclick="closeEventModal()" class="text-slate-400 hover:text-slate-600 text-2xl">×</button>
-                </div>
-
-                <div class="space-y-6">
-                    <!-- Fraudster Profile -->
-                    <div class="border border-slate-200 rounded-lg p-5 bg-slate-50">
-                        <h3 class="font-bold text-slate-900 text-lg">${event.profile_name || 'Unknown Fraudster'}</h3>
-                        <p class="text-sm text-slate-600 mt-1">Status: <span class="font-semibold text-red-600">Verified Fraudster</span></p>
                     </div>
 
-                    <!-- Scam Information -->
-                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
-                        <h4 class="font-bold text-slate-800 mb-3">📋 Scam Information</h4>
+                    <!-- Fraud Details Section -->
+                    <div class="border border-slate-200 rounded-xl p-6 bg-white">
+                        <h4 class="font-bold text-slate-900 mb-4 text-lg">📋 Fraud Details</h4>
                         <div class="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                                <p class="text-slate-500 text-xs font-semibold">Type</p>
-                                <p class="text-slate-900 font-semibold">${event.scam_type}</p>
+                                <p class="text-slate-500 text-xs font-semibold">Scam Type</p>
+                                <p class="text-slate-900 font-bold mt-1">${event.scam_type || 'Unknown'}</p>
                             </div>
                             <div>
                                 <p class="text-slate-500 text-xs font-semibold">Loss Amount</p>
-                                <p class="text-red-600 font-bold">${amount}</p>
+                                <p class="text-red-600 font-bold mt-1">${amount}</p>
                             </div>
                             <div>
                                 <p class="text-slate-500 text-xs font-semibold">Item Lost</p>
-                                <p class="text-slate-900">${event.loss_item}</p>
+                                <p class="text-slate-900 font-bold mt-1">${event.loss_item || 'N/A'}</p>
                             </div>
                             <div>
-                                <p class="text-slate-500 text-xs font-semibold">GD Number</p>
-                                <p class="text-slate-900">${event.gd_number || 'N/A'}</p>
+                                <p class="text-slate-500 text-xs font-semibold">Location</p>
+                                <p class="text-slate-900 font-bold mt-1">${location}</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Description -->
-                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
-                        <h4 class="font-bold text-slate-800 mb-3">📝 Incident Description</h4>
-                        <p class="text-slate-700 leading-relaxed text-sm">${event.description}</p>
+                    <div class="border border-slate-200 rounded-xl p-6 bg-white">
+                        <h4 class="font-bold text-slate-900 mb-3">📝 Incident Description</h4>
+                        <p class="text-slate-700 leading-relaxed text-sm">${description}</p>
                     </div>
 
                     <!-- Contact Information -->
-                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
-                        <h4 class="font-bold text-slate-800 mb-3">📞 Contact Information</h4>
-                        <div class="bg-slate-50 p-3 rounded border border-slate-200 mb-3">
-                            <p class="text-xs text-slate-500 font-semibold">Phone Number(s)</p>
-                            <p class="text-slate-900 font-mono text-sm">${phones}</p>
-                        </div>
-                        <div class="bg-slate-50 p-3 rounded border border-slate-200">
-                            <p class="text-xs text-slate-500 font-semibold">Location/Address</p>
-                            <p class="text-slate-900 text-sm">${event.address || 'Not provided'}</p>
+                    <div class="border border-slate-200 rounded-xl p-6 bg-white">
+                        <h4 class="font-bold text-slate-900 mb-4">📞 Contact Information</h4>
+                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <p class="text-xs text-slate-500 font-semibold mb-2">Phone Number(s)</p>
+                            <p class="text-slate-900 font-mono text-sm break-all">${phones}</p>
                         </div>
                     </div>
 
                     <!-- Reporter Information -->
-                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
-                        <h4 class="font-bold text-slate-800 mb-3">👤 Reporter Information</h4>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <p class="text-slate-500 text-xs font-semibold">Reporter Name</p>
-                                <p class="text-slate-900">${event.reporter_name || 'Anonymous'}</p>
-                            </div>
-                            <div>
-                                <p class="text-slate-500 text-xs font-semibold">Visibility</p>
-                                <p class="text-slate-900 capitalize">${event.reporter_visibility || 'Not specified'}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Timeline -->
-                    <div class="border border-slate-200 rounded-lg p-5 bg-white">
-                        <h4 class="font-bold text-slate-800 mb-3">⏰ Timeline</h4>
-                        <p class="text-sm text-slate-700">Reported: <span class="font-semibold">${new Date(event.submitted_at).toLocaleString()}</span></p>
-                        ${event.approved_at ? `<p class="text-sm text-green-700 mt-2">Approved: <span class="font-semibold">${new Date(event.approved_at).toLocaleString()}</span></p>` : ''}
-                    </div>
-
-                    ${event.profile_id ? `
-                        <button onclick="viewFullProfile('${event.profile_id}')" class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition">View Full Profile & All Related Incidents</button>
-                    ` : ''}
-
-                    <button onclick="closeEventModal()" class="w-full bg-slate-200 text-slate-800 py-2 rounded-lg font-semibold hover:bg-slate-300 transition">Close</button>
-                </div>
-            `;
-
-            document.getElementById('modal-content').innerHTML = modalContent;
-            document.getElementById('event-modal').classList.remove('hidden');
-        }
-
-        function closeEventModal() {
-            document.getElementById('event-modal').classList.add('hidden');
-        }
-
-        async function viewFullProfile(profileId) {
-            closeEventModal();
-            try {
-                const res = await fetch(`/api/profiles/${profileId}`);
-                const data = await res.json();
-                const detailDiv = document.getElementById('profile-detail');
-                detailDiv.classList.remove('hidden');
-
-                let eventsHtml = '';
-                const totalLoss = data.events.reduce((sum, e) => sum + (e.loss_amount || 0), 0);
-
-                data.events.forEach(e => {
-                    eventsHtml += `
-                        <div class="p-4 bg-slate-50 rounded-lg border border-slate-100 mt-3">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <p class="font-semibold text-slate-900">${e.scam_type}</p>
-                                    <p class="text-xs text-slate-500">${new Date(e.submitted_at).toLocaleDateString()}</p>
-                                </div>
-                                <span class="bg-red-100 text-red-700 text-xs px-2 py-1 rounded font-semibold">BDT ${e.loss_amount ? e.loss_amount.toLocaleString() : '0'}</span>
-                            </div>
-                            <p class="text-sm text-slate-700">${e.description}</p>
-                            <p class="text-xs text-slate-500 mt-2">📍 ${e.address || 'Location not provided'}</p>
-                        </div>
-                    `;
-                });
-
-                detailDiv.innerHTML = `
-                    <div class="border-b border-slate-200 pb-4 mb-4">
-                        <h2 class="text-2xl font-bold text-slate-900">${data.profile.display_name}</h2>
-                        <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mt-1">Status: <span class="text-red-600">Verified Fraudster</span></p>
-                    </div>
-                    
-                    <div class="grid grid-cols-3 gap-4 mb-4">
-                        <div class="bg-red-50 p-3 rounded border border-red-100">
-                            <p class="text-red-600 font-bold text-lg">${data.events.length}</p>
-                            <p class="text-xs text-red-600 font-semibold">Total Incidents</p>
-                        </div>
-                        <div class="bg-blue-50 p-3 rounded border border-blue-100">
-                            <p class="text-blue-600 font-bold text-lg">BDT ${totalLoss.toLocaleString()}</p>
-                            <p class="text-xs text-blue-600 font-semibold">Total Loss</p>
-                        </div>
-                        <div class="bg-green-50 p-3 rounded border border-green-100">
-                            <p class="text-green-600 font-bold text-lg">${data.identifiers.length}</p>
-                            <p class="text-xs text-green-600 font-semibold">Contact Links</p>
-                        </div>
-                    </div>
-
-                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
-                        <h4 class="font-bold text-slate-800 text-sm mb-3">📱 Identified Contact Information</h4>
-                        <div class="space-y-2">
-                            ${data.identifiers.map(i => `
-                                <div class="bg-white p-2 rounded border border-slate-200">
-                                    <p class="text-xs text-slate-500 font-semibold">${i.identifier_type}</p>
-                                    <p class="text-sm text-slate-900 font-mono">${i.identifier_value}</p>
-                                </div>
-                            `).join('') || '<p class="text-xs text-slate-500">No contact information linked</p>'}
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 class="font-bold text-slate-800 mb-3">🔴 Fraud Incident History (${data.events.length} incidents)</h3>
-                        ${eventsHtml || '<p class="text-xs text-slate-500">No approved incidents yet.</p>'}
+                    <div class="border border-slate-200 rounded-xl p-6 bg-white">
+                        <h4 class="font-bold text-slate-900 mb-3">👤 Reported By</h4>
+                        <p class="text-slate-700">${reporterInfo}</p>
+                        <p class="text-xs text-slate-500 mt-2">📅 Reported on ${new Date(event.submitted_at).toLocaleDateString()}</p>
                     </div>
                 `;
+
+                document.getElementById('modal-content').innerHTML = modalContent;
+                document.getElementById('event-modal').classList.remove('hidden');
             } catch (err) {
-                alert('Error loading profile: ' + err.message);
+                alert('Error loading event details: ' + err.message);
             }
         }
 
-        // Close modal on outside click
+        // View full event details page
+        function viewFullEvent() {
+            if (currentEventId) {
+                window.location.href = `/event-detail.html?id=${currentEventId}`;
+            }
+        }
+
+        // Close modal
+        function closeEventModal() {
+            document.getElementById('event-modal').classList.add('hidden');
+            currentEventId = null;
+        }
+
+        // Close modal when clicking outside
         document.getElementById('event-modal').addEventListener('click', function(e) {
             if (e.target === this) closeEventModal();
+        });
+
+        // Allow Enter key to search
+        document.getElementById('query').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performSearch();
         });
     </script>
 </body>

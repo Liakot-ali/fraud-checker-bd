@@ -125,6 +125,24 @@ async function initializeDatabase() {
             console.log('✓ Seeded sample fraudster profile with test data');
         }
 
+        // Create text indexes for faster searching
+        try {
+            await db.collection('fraud_events').createIndex({
+                imposter_name: 'text',
+                imposter_nickname: 'text',
+                imposter_phone: 'text',
+                imposter_nid: 'text',
+                gd_number: 'text',
+                scam_type: 'text',
+                description: 'text',
+                scam_location: 'text'
+            });
+            console.log('✓ Text indexes created for faster search');
+        } catch (err) {
+            // Index might already exist, ignore error
+            console.log('ℹ Search indexes already exist');
+        }
+
         console.log(`✓ Database initialized: ${DB_NAME}`);
     } catch (err) {
         console.error('Database initialization error:', err.message);
@@ -138,66 +156,72 @@ async function initializeDatabase() {
 app.get('/api/search', async (req, res) => {
     try {
         const query = req.query.q || '';
-        const normQuery = normalize(query);
-
-        const fraudEvents = db.collection('fraud_events');
-        const eventPhones = db.collection('event_phones');
-        const identifiersCollection = db.collection('identifiers');
-        const cheaterProfiles = db.collection('cheater_profiles');
-
-        // Search approved fraud events by various fields
-        const eventMatches = await fraudEvents.find({
-            status: 'approved',
-            $or: [
-                { description: new RegExp(query, 'i') },
-                { scam_type: new RegExp(query, 'i') },
-                { loss_item: new RegExp(query, 'i') },
-                { address: new RegExp(query, 'i') },
-                { reporter_name: new RegExp(query, 'i') }
-            ]
-        }).toArray();
-
-        // Also search by phone numbers
-        const phoneMatches = await eventPhones.find({
-            normalized_phone: new RegExp(normQuery)
-        }).project({ event_id: 1 }).toArray();
-
-        const phoneEventIds = new Set(phoneMatches.map(p => p.event_id.toString()));
-        const allEventIds = new Set(eventMatches.map(e => e._id.toString()));
-
-        // Get events matched by phone
-        if (phoneMatches.length > 0) {
-            const phoneEvents = await fraudEvents.find({
-                _id: { $in: phoneMatches.map(p => p.event_id) },
-                status: 'approved'
-            }).toArray();
-            phoneEvents.forEach(e => allEventIds.add(e._id.toString()));
+        
+        if (!query.trim()) {
+            return res.json([]);
         }
 
-        // Fetch detailed event data with phone and profile info
-        const uniqueEventIds = Array.from(allEventIds).map(id => new ObjectId(id));
-        const detailedEvents = await fraudEvents.find({
-            _id: { $in: uniqueEventIds }
+        const fraudEvents = db.collection('fraud_events');
+
+        // Use text search with text index for much faster performance
+        const eventMatches = await fraudEvents.find({
+            status: 'approved',
+            $text: { $search: query }
         }).toArray();
 
-        // Enrich events with phone and profile data
-        const resultsWithDetails = await Promise.all(
-            detailedEvents.map(async (event) => {
-                const phones = await eventPhones.find({ event_id: event._id }).toArray();
-                let profile = null;
-                if (event.profile_id) {
-                    profile = await cheaterProfiles.findOne({ _id: event.profile_id });
-                }
-                return {
-                    ...event,
-                    phones: phones.map(p => p.phone_number),
-                    profile_name: profile?.display_name || 'Unknown',
-                    profile_id: profile?._id
-                };
-            })
-        );
+        res.json(eventMatches);
+    } catch (err) {
+        // Fallback to regex search if text search fails or text index doesn't exist
+        try {
+            const fraudEvents = db.collection('fraud_events');
+            const query_obj = req.query.q || '';
+            const regexPattern = new RegExp(query_obj, 'i');
 
-        res.json(resultsWithDetails);
+            const eventMatches = await fraudEvents.find({
+                status: 'approved',
+                $or: [
+                    { imposter_name: regexPattern },
+                    { imposter_nickname: regexPattern },
+                    { imposter_phone: regexPattern },
+                    { alt_phones: regexPattern },
+                    { imposter_nid: regexPattern },
+                    { gd_number: regexPattern },
+                    { scam_type: regexPattern },
+                    { description: regexPattern },
+                    { scam_location: regexPattern }
+                ]
+            }).toArray();
+
+            res.json(eventMatches);
+        } catch (fallbackErr) {
+            res.status(500).json({ error: err.message });
+        }
+    }
+});
+
+// GET /api/events/:id/details - Fetch full event details for event-detail page
+app.get('/api/events/:id/details', async (req, res) => {
+    try {
+        const eventId = new ObjectId(req.params.id);
+        const fraudEvents = db.collection('fraud_events');
+        const cheaterProfiles = db.collection('cheater_profiles');
+
+        const event = await fraudEvents.findOne({ _id: eventId, status: 'approved' });
+        
+        if (!event) {
+            return res.status(404).json({ error: 'Event not found' });
+        }
+
+        // Fetch profile if linked
+        let profile = null;
+        if (event.profile_id) {
+            profile = await cheaterProfiles.findOne({ _id: event.profile_id });
+        }
+
+        res.json({
+            event: event,
+            profile: profile
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

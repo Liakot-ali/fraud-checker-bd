@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imposter Profile | Fraud-Checker-BD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <!-- Navigation -->
+    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-40">
+        <a href="/" class="text-2xl font-black text-red-600 tracking-tight">Fraud-Checker-BD</a>
+        <div class="space-x-4">
+            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">← Back to Search</a>
+            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto mt-8 px-4 pb-12">
+        <div id="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+            <p class="mt-4 text-slate-600">Loading imposter profile...</p>
+        </div>
+
+        <div id="content" class="hidden space-y-6">
+            <!-- Profile Header -->
+            <div class="bg-gradient-to-r from-purple-600 to-red-600 text-white rounded-2xl p-8 shadow-lg">
+                <div class="flex items-center gap-6">
+                    <div id="imposter-avatar" class="w-32 h-32 rounded-full bg-white/20 flex items-center justify-center text-5xl font-bold border-4 border-white">
+                        👤
+                    </div>
+                    <div class="flex-grow">
+                        <h1 id="imposter-name" class="text-4xl font-black">Loading...</h1>
+                        <p class="text-purple-100 mt-2 text-lg">Verified Fraudster Profile</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Stats -->
+            <div class="grid md:grid-cols-4 gap-4">
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                    <p class="text-slate-600 text-sm font-semibold mb-2">Total Incidents</p>
+                    <p id="incident-count" class="text-3xl font-black text-red-600">0</p>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                    <p class="text-slate-600 text-sm font-semibold mb-2">Total Loss</p>
+                    <p id="total-loss" class="text-3xl font-black text-orange-600">৳0</p>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                    <p class="text-slate-600 text-sm font-semibold mb-2">Last Active</p>
+                    <p id="last-active" class="text-lg font-bold text-blue-600">-</p>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                    <p class="text-slate-600 text-sm font-semibold mb-2">Profile Status</p>
+                    <p class="text-lg font-bold text-red-600">🔴 Verified</p>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <h2 class="text-2xl font-bold text-slate-900 mb-6">📱 Known Contact Information</h2>
+                <div id="contact-info" class="space-y-3"></div>
+            </div>
+
+            <!-- Profile Details -->
+            <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <h2 class="text-2xl font-bold text-slate-900 mb-6">ℹ️ Profile Details</h2>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div id="profile-details" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <!-- Fraud Incident History -->
+            <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <h2 class="text-2xl font-bold text-slate-900 mb-6">🔴 Fraud Incident History</h2>
+                <div id="incidents-container" class="space-y-4"></div>
+            </div>
+
+            <!-- Warning Section -->
+            <div class="bg-red-50 border-2 border-red-200 rounded-xl p-6">
+                <h3 class="font-bold text-red-900 mb-2">⚠️ Be Cautious</h3>
+                <p class="text-red-800">If you encounter this person, do not send money, share personal information, or engage in any financial transactions. Report any new incidents immediately.</p>
+                <a href="/submit.html" class="inline-block mt-4 bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition">Report a New Incident with This Person</a>
+            </div>
+
+            <!-- Action Section -->
+            <div class="flex gap-4 justify-center">
+                <a href="/" class="bg-slate-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-700 transition">← Back to Search</a>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error" class="hidden text-center py-12">
+            <div class="text-6xl mb-4">❌</div>
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">Profile Not Found</h2>
+            <p class="text-slate-600 mb-6">This imposter profile could not be found or may have been removed.</p>
+            <a href="/" class="inline-block bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 transition">Return to Search</a>
+        </div>
+    </main>
+
+    <script>
+        async function loadImposterProfile() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const imposterName = urlParams.get('name');
+                const imposterPhone = urlParams.get('phone');
+
+                if (!imposterName && !imposterPhone) {
+                    showError();
+                    return;
+                }
+
+                // Search for events with this imposter
+                let searchQuery = imposterName || imposterPhone;
+                const searchRes = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+                const events = await searchRes.json();
+
+                if (!events || events.length === 0) {
+                    showError();
+                    return;
+                }
+
+                // Get the first event's imposter details
+                const event = events[0];
+                const imposterNameValue = event.imposter_name || 'Unknown';
+
+                // Update page title
+                document.title = `${imposterNameValue} - Imposter Profile | Fraud-Checker-BD`;
+
+                // Set avatar
+                const avatarDiv = document.getElementById('imposter-avatar');
+                avatarDiv.textContent = imposterNameValue.charAt(0).toUpperCase();
+
+                // Populate header
+                document.getElementById('imposter-name').textContent = imposterNameValue;
+
+                // Calculate stats
+                const totalLoss = events.reduce((sum, e) => sum + (e.loss_amount || 0), 0);
+                const uniquePhones = new Set();
+                const uniqueNIDs = new Set();
+                let lastActiveDate = null;
+
+                events.forEach(e => {
+                    if (e.imposter_phone) uniquePhones.add(e.imposter_phone);
+                    if (e.alt_phones && Array.isArray(e.alt_phones)) {
+                        e.alt_phones.forEach(p => uniquePhones.add(p));
+                    }
+                    if (e.imposter_nid) uniqueNIDs.add(e.imposter_nid);
+                    if (e.approved_at) {
+                        const date = new Date(e.approved_at);
+                        if (!lastActiveDate || date > lastActiveDate) {
+                            lastActiveDate = date;
+                        }
+                    }
+                });
+
+                // Update stats
+                document.getElementById('incident-count').textContent = events.length;
+                document.getElementById('total-loss').textContent = totalLoss ? `৳${totalLoss.toLocaleString()}` : '৳0';
+                document.getElementById('last-active').textContent = lastActiveDate
+                    ? lastActiveDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                    : 'Unknown';
+
+                // Contact Information
+                const contactDiv = document.getElementById('contact-info');
+                contactDiv.innerHTML = `
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <p class="text-sm text-slate-600 font-semibold mb-2">Phone Numbers (${uniquePhones.size})</p>
+                        <div class="space-y-2">
+                            ${Array.from(uniquePhones).map(phone => `
+                                <p class="text-slate-800 font-mono bg-white p-2 rounded border border-slate-200 text-sm">${phone}</p>
+                            `).join('') || '<p class="text-slate-600 text-sm">No phone numbers found</p>'}
+                        </div>
+                    </div>
+                    ${uniqueNIDs.size > 0 ? `
+                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <p class="text-sm text-slate-600 font-semibold mb-2">NID Numbers (${uniqueNIDs.size})</p>
+                            <div class="space-y-2">
+                                ${Array.from(uniqueNIDs).map(nid => `
+                                    <p class="text-slate-800 bg-white p-2 rounded border border-slate-200 text-sm">${nid}</p>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                `;
+
+                // Profile Details
+                const profileDiv = document.getElementById('profile-details');
+                let profileHTML = `
+                    <div>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">Full Name</p>
+                        <p class="text-slate-900 font-bold text-lg">${event.imposter_name || '-'}</p>
+                    </div>
+                `;
+
+                if (event.imposter_nickname) {
+                    profileHTML += `
+                        <div>
+                            <p class="text-slate-600 text-sm font-semibold mb-2">Nickname / Pseudonym</p>
+                            <p class="text-slate-900 text-lg">${event.imposter_nickname}</p>
+                        </div>
+                    `;
+                }
+
+                if (event.imposter_address) {
+                    profileHTML += `
+                        <div>
+                            <p class="text-slate-600 text-sm font-semibold mb-2">Known Address</p>
+                            <p class="text-slate-900 text-lg">${event.imposter_address}</p>
+                        </div>
+                    `;
+                }
+
+                if (event.social_media_account) {
+                    profileHTML += `
+                        <div>
+                            <p class="text-slate-600 text-sm font-semibold mb-2">Social Media</p>
+                            <a href="${event.social_media_account}" target="_blank" class="text-blue-600 hover:underline text-lg">
+                                ${event.social_media_account}
+                            </a>
+                        </div>
+                    `;
+                }
+
+                profileDiv.innerHTML = profileHTML;
+
+                // Incident History
+                const incidentsDiv = document.getElementById('incidents-container');
+                incidentsDiv.innerHTML = events.map((e, idx) => `
+                    <a href="/event-detail.html?id=${e._id}" class="block bg-slate-50 border border-slate-200 rounded-lg p-6 hover:border-red-500 hover:shadow-lg transition">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="font-bold text-slate-900 text-lg">${e.scam_type}</h3>
+                                <p class="text-xs text-slate-500 mt-1">📅 ${new Date(e.approved_at || e.submitted_at).toLocaleDateString()}</p>
+                            </div>
+                            <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-bold">
+                                ${e.loss_amount ? `৳${e.loss_amount.toLocaleString()}` : 'Unknown'}
+                            </span>
+                        </div>
+                        <p class="text-slate-700 text-sm mb-3 line-clamp-2">${e.description}</p>
+                        <div class="flex gap-4 text-xs text-slate-600">
+                            <span>📝 ${e.loss_item}</span>
+                            <span>📍 ${e.scam_location || 'Location not provided'}</span>
+                        </div>
+                    </a>
+                `).join('');
+
+                // Show content
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('content').classList.remove('hidden');
+            } catch (err) {
+                console.error('Error loading profile:', err);
+                showError();
+            }
+        }
+
+        function showError() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.remove('hidden');
+        }
+
+        // Load profile when page loads
+        document.addEventListener('DOMContentLoaded', loadImposterProfile);
+    </script>
+</body>
+</html>

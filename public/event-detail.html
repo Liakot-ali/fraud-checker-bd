@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraud Event Details | Fraud-Checker-BD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans">
+    <!-- Navigation -->
+    <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-40">
+        <a href="/" class="text-2xl font-black text-red-600 tracking-tight">Fraud-Checker-BD</a>
+        <div class="space-x-4">
+            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">← Back to Search</a>
+            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto mt-8 px-4 pb-12">
+        <div id="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
+            <p class="mt-4 text-slate-600">Loading event details...</p>
+        </div>
+
+        <div id="content" class="hidden space-y-6">
+            <!-- Event Header -->
+            <div class="bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-2xl p-8 shadow-lg">
+                <div class="flex items-center gap-6 mb-4">
+                    <div id="imposter-avatar" class="w-24 h-24 rounded-full bg-white/20 flex items-center justify-center text-4xl font-bold border-2 border-white">
+                        ⚠️
+                    </div>
+                    <div>
+                        <h1 id="event-title" class="text-3xl font-black">Loading...</h1>
+                        <p id="event-subtitle" class="text-red-100 mt-2">Verified Fraudster</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4 mt-6">
+                    <div>
+                        <p class="text-red-100 text-sm">Loss Amount</p>
+                        <p id="loss-amount" class="text-2xl font-bold">৳0</p>
+                    </div>
+                    <div>
+                        <p class="text-red-100 text-sm">Scam Type</p>
+                        <p id="scam-type" class="text-2xl font-bold">-</p>
+                    </div>
+                    <div>
+                        <p class="text-red-100 text-sm">Location</p>
+                        <p id="location" class="text-2xl font-bold">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fraud Details Section -->
+            <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <h2 class="text-2xl font-bold text-slate-900 mb-6">📋 Fraud Details</h2>
+                <div class="grid md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">Item Lost</p>
+                        <p id="loss-item" class="text-lg text-slate-900 font-bold">-</p>
+                    </div>
+                    <div>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">GD Number (Police)</p>
+                        <p id="gd-number" class="text-lg text-slate-900 font-bold">-</p>
+                    </div>
+                </div>
+                
+                <div>
+                    <p class="text-slate-600 text-sm font-semibold mb-3">Description</p>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p id="description" class="text-slate-800 leading-relaxed">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Imposter Details Section -->
+            <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <h2 class="text-2xl font-bold text-slate-900 mb-6">👤 Imposter Profile Details</h2>
+                
+                <div class="grid md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">Full Name</p>
+                        <p id="imposter-name" class="text-lg text-slate-900 font-bold">-</p>
+                    </div>
+                    <div>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">Nickname / Pseudonym</p>
+                        <p id="imposter-nickname" class="text-lg text-slate-900">-</p>
+                    </div>
+                    <div>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">Primary Phone</p>
+                        <p id="imposter-phone" class="text-lg text-slate-900 font-mono font-bold">-</p>
+                    </div>
+                    <div>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">NID / ID Number</p>
+                        <p id="imposter-nid" class="text-lg text-slate-900">-</p>
+                    </div>
+                </div>
+
+                <div id="alt-phones-section" class="mb-6 hidden">
+                    <p class="text-slate-600 text-sm font-semibold mb-2">Alternative Phone Numbers</p>
+                    <div id="alt-phones" class="space-y-2"></div>
+                </div>
+
+                <div id="address-section" class="mb-6 hidden">
+                    <p class="text-slate-600 text-sm font-semibold mb-2">Address / Location</p>
+                    <p id="imposter-address" class="text-slate-800 bg-slate-50 p-4 rounded-lg border border-slate-200">-</p>
+                </div>
+
+                <div id="social-media-section" class="mb-6 hidden">
+                    <p class="text-slate-600 text-sm font-semibold mb-2">Social Media Account</p>
+                    <p><a id="social-media" href="#" target="_blank" class="text-blue-600 hover:underline break-all">-</a></p>
+                </div>
+            </div>
+
+            <!-- Evidence/Proofs Section -->
+            <div id="proofs-section" class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm hidden">
+                <h2 class="text-2xl font-bold text-slate-900 mb-6">📸 Evidence & Proofs</h2>
+                <div id="proofs-container" class="grid md:grid-cols-2 gap-6"></div>
+            </div>
+
+            <!-- Reporter Information Section -->
+            <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <h2 class="text-2xl font-bold text-slate-900 mb-6">📢 Reported By</h2>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <p id="reporter-name" class="text-slate-800 font-semibold text-lg">-</p>
+                    <p id="reporter-visibility" class="text-slate-600 text-sm mt-2">Reporter information is private</p>
+                    <p id="report-date" class="text-slate-500 text-sm mt-2">📅 Reported on -</p>
+                </div>
+            </div>
+
+            <!-- Share Section -->
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                <h3 class="font-bold text-slate-900 mb-3">🔗 Share This Report</h3>
+                <p class="text-slate-600 text-sm mb-3">Help others stay safe by sharing this fraud report:</p>
+                <div class="flex gap-2">
+                    <input type="text" id="share-link" readonly class="flex-1 px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm font-mono" value="">
+                    <button onclick="copyShareLink()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">Copy Link</button>
+                </div>
+            </div>
+
+            <!-- Action Section -->
+            <div class="flex gap-4 justify-center">
+                <a href="/" class="bg-slate-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-700 transition">← Back to Search</a>
+                <a href="/submit.html" class="bg-red-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-red-700 transition">Report Another Incident</a>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error" class="hidden text-center py-12">
+            <div class="text-6xl mb-4">❌</div>
+            <h2 class="text-2xl font-bold text-slate-900 mb-2">Event Not Found</h2>
+            <p class="text-slate-600 mb-6">This fraud report could not be found or may have been removed.</p>
+            <a href="/" class="inline-block bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 transition">Return to Search</a>
+        </div>
+    </main>
+
+    <script>
+        async function loadEventDetails() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const eventId = urlParams.get('id');
+
+                if (!eventId) {
+                    showError();
+                    return;
+                }
+
+                const res = await fetch(`/api/events/${eventId}/details`);
+                const data = await res.json();
+
+                if (!data.event) {
+                    showError();
+                    return;
+                }
+
+                const event = data.event;
+
+                // Update page title
+                document.title = `${event.imposter_name || 'Fraud Report'} - ${event.scam_type} | Fraud-Checker-BD`;
+
+                // Set imposter avatar
+                const avatarDiv = document.getElementById('imposter-avatar');
+                avatarDiv.textContent = (event.imposter_name || '?').charAt(0).toUpperCase();
+
+                // Populate imposter details
+                document.getElementById('event-title').textContent = event.imposter_name || 'Unknown Imposter';
+                document.getElementById('loss-amount').textContent = event.loss_amount ? `৳${event.loss_amount.toLocaleString()}` : 'Not specified';
+                document.getElementById('scam-type').textContent = event.scam_type || '-';
+                document.getElementById('location').textContent = event.scam_location || event.address || '-';
+
+                // Fraud details
+                document.getElementById('loss-item').textContent = event.loss_item || '-';
+                document.getElementById('gd-number').textContent = event.gd_number || 'Not filed';
+                document.getElementById('description').textContent = event.description || 'No description provided';
+
+                // Imposter details
+                document.getElementById('imposter-name').textContent = event.imposter_name || '-';
+                document.getElementById('imposter-phone').textContent = event.imposter_phone || '-';
+
+                // Nickname
+                if (event.imposter_nickname) {
+                    document.getElementById('imposter-nickname').textContent = event.imposter_nickname;
+                }
+
+                // NID
+                if (event.imposter_nid) {
+                    document.getElementById('imposter-nid').textContent = event.imposter_nid;
+                }
+
+                // Address
+                if (event.imposter_address) {
+                    document.getElementById('address-section').classList.remove('hidden');
+                    document.getElementById('imposter-address').textContent = event.imposter_address;
+                }
+
+                // Alternative phones
+                if (event.alt_phones && event.alt_phones.length > 0) {
+                    document.getElementById('alt-phones-section').classList.remove('hidden');
+                    document.getElementById('alt-phones').innerHTML = event.alt_phones
+                        .map(phone => `<p class="text-slate-800 font-mono bg-slate-50 p-2 rounded border border-slate-200">${phone}</p>`)
+                        .join('');
+                }
+
+                // Social media
+                if (event.social_media_account) {
+                    document.getElementById('social-media-section').classList.remove('hidden');
+                    const socialLink = document.getElementById('social-media');
+                    socialLink.href = event.social_media_account;
+                    socialLink.textContent = event.social_media_account;
+                }
+
+                // Proofs
+                if (event.scam_proofs && event.scam_proofs.length > 0) {
+                    document.getElementById('proofs-section').classList.remove('hidden');
+                    const proofsContainer = document.getElementById('proofs-container');
+                    proofsContainer.innerHTML = event.scam_proofs.map((proof, idx) => {
+                        const isImage = proof.mimetype && proof.mimetype.startsWith('image');
+                        const isVideo = proof.mimetype && proof.mimetype.startsWith('video');
+                        const dataUrl = `data:${proof.mimetype};base64,${proof.data}`;
+
+                        if (isImage) {
+                            return `
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
+                                    <img src="${dataUrl}" alt="Proof ${idx + 1}" class="w-full h-48 object-cover cursor-pointer" onclick="openImageModal('${dataUrl}')">
+                                    <p class="p-3 text-xs text-slate-600 font-semibold">${proof.name}</p>
+                                </div>
+                            `;
+                        } else if (isVideo) {
+                            return `
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                    <div class="bg-slate-200 rounded-lg h-40 flex items-center justify-center mb-2">🎥</div>
+                                    <p class="text-xs text-slate-600 font-semibold">${proof.name}</p>
+                                    <a href="${dataUrl}" download="${proof.name}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Download Video</a>
+                                </div>
+                            `;
+                        } else {
+                            return `
+                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                    <div class="text-3xl mb-2">📄</div>
+                                    <p class="text-xs text-slate-600 font-semibold">${proof.name}</p>
+                                    <a href="${dataUrl}" download="${proof.name}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Download</a>
+                                </div>
+                            `;
+                        }
+                    }).join('');
+                }
+
+                // Reporter info
+                const reporterVisibility = event.reporter_visibility || 'private';
+                if (reporterVisibility === 'public' && event.reporter_name) {
+                    document.getElementById('reporter-name').textContent = event.reporter_name;
+                    document.getElementById('reporter-visibility').textContent = 'Reporter details are public';
+                } else {
+                    document.getElementById('reporter-name').textContent = 'Anonymous';
+                    document.getElementById('reporter-visibility').textContent = 'Reporter information is private (per reporter request)';
+                }
+
+                document.getElementById('report-date').textContent = `📅 Reported on ${new Date(event.submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+
+                // Set share link
+                const shareLink = `${window.location.origin}${window.location.pathname}?id=${eventId}`;
+                document.getElementById('share-link').value = shareLink;
+
+                // Show content
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('content').classList.remove('hidden');
+            } catch (err) {
+                console.error('Error loading event:', err);
+                showError();
+            }
+        }
+
+        function showError() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.remove('hidden');
+        }
+
+        function copyShareLink() {
+            const link = document.getElementById('share-link');
+            link.select();
+            document.execCommand('copy');
+            alert('Link copied to clipboard!');
+        }
+
+        function openImageModal(src) {
+            // Create modal
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 cursor-pointer';
+            modal.innerHTML = `
+                <div class="relative max-w-4xl w-full">
+                    <img src="${src}" alt="Full image" class="w-full rounded-lg">
+                    <button class="absolute top-4 right-4 text-white text-4xl font-bold hover:text-slate-200">×</button>
+                </div>
+            `;
+            modal.addEventListener('click', function() {
+                this.remove();
+            });
+            document.body.appendChild(modal);
+        }
+
+        // Load event details when page loads
+        document.addEventListener('DOMContentLoaded', loadEventDetails);
+    </script>
+</body>
+</html>
