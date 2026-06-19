@@ -342,15 +342,15 @@
                 }
 
                 container.innerHTML = imposters.map(imposter => `
-                    <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-purple-500 transition">
-                        <h3 class="text-lg font-bold text-purple-400 mb-2">${imposter.name}</h3>
+                    <a href="/imposter-profile.html?id=${imposter.id}" target="_blank" class="block bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-purple-500 transition">
+                        <h3 class="text-lg font-bold text-purple-400 mb-2">${imposter.name} <span class="text-xs text-slate-500 font-normal">↗ view profile</span></h3>
                         <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
                             <div>📱 ${imposter.phone || 'N/A'}</div>
                             <div>🎯 Scams: ${imposter.scam_count || 0}</div>
                             <div>💰 Total Loss: ৳${imposter.total_loss?.toLocaleString() || '0'}</div>
                             <div>📍 Last Active: ${imposter.last_active ? formatDate(imposter.last_active) : 'N/A'}</div>
                         </div>
-                    </div>
+                    </a>
                 `).join('');
             } catch (err) {
                 console.error('Error loading imposters:', err);
@@ -395,6 +395,37 @@
                 const res = await fetch(`/api/admin/events/${eventId}/details`);
                 const data = await res.json();
                 const event = data.event;
+
+                // Build evidence (imposter photo + proof files) markup so the
+                // moderator can actually review what was submitted.
+                const picUrl = event.imposter_picture && event.imposter_picture.data
+                    ? `data:${event.imposter_picture.mimetype};base64,${event.imposter_picture.data}`
+                    : null;
+                const proofsHtml = (event.scam_proofs && event.scam_proofs.length > 0)
+                    ? event.scam_proofs.map(p => {
+                        const url = `data:${p.mimetype};base64,${p.data}`;
+                        if (p.mimetype && p.mimetype.startsWith('image')) {
+                            return `<a href="${url}" target="_blank"><img src="${url}" alt="${p.name}" class="w-full h-28 object-cover rounded border border-slate-700"></a>`;
+                        }
+                        const icon = p.mimetype && p.mimetype.startsWith('video') ? '🎥' : '📄';
+                        return `<div class="bg-slate-800 border border-slate-700 rounded p-2 text-center"><div class="text-2xl">${icon}</div><a href="${url}" download="${p.name}" class="text-xs text-blue-400 hover:underline break-all">${p.name}</a></div>`;
+                    }).join('')
+                    : '<p class="text-slate-400 text-sm">No proof files were attached.</p>';
+                const evidenceHtml = `
+                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
+                            <h3 class="text-sm font-bold uppercase text-amber-400 mb-3">📸 Evidence</h3>
+                            <div class="mb-4">
+                                <p class="text-slate-400 text-xs mb-2">Imposter Photo</p>
+                                ${picUrl
+                                    ? `<a href="${picUrl}" target="_blank"><img src="${picUrl}" alt="Imposter" class="w-28 h-28 object-cover rounded-lg border border-slate-700"></a>`
+                                    : '<p class="text-slate-400 text-sm">No imposter photo uploaded.</p>'}
+                            </div>
+                            <div>
+                                <p class="text-slate-400 text-xs mb-2">Proof Files (${(event.scam_proofs || []).length})</p>
+                                <div class="grid grid-cols-3 gap-3">${proofsHtml}</div>
+                            </div>
+                        </div>
+                `;
 
                 const modalContent = `
                     <div class="space-y-6">
@@ -465,6 +496,8 @@
                                 <p class="text-slate-200 text-sm leading-relaxed bg-slate-800/50 p-3 rounded border border-slate-700">${event.description}</p>
                             </div>
                         </div>
+
+                        ${evidenceHtml}
 
                         <!-- Reporter Details -->
                         <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">

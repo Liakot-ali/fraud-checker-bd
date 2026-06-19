@@ -19,6 +19,29 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Helper: Text Normalization
 const normalize = (text) => text ? text.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
+// Helper: Strip sensitive reporter contact info (and optionally heavy base64
+// media blobs) from an event before returning it to public, unauthenticated
+// clients. Admin endpoints intentionally do NOT use this.
+function sanitizeEvent(event, { includeProofs = false } = {}) {
+    if (!event || typeof event !== 'object') return event;
+    const safe = { ...event };
+    // Reporter phone/email are never exposed publicly
+    delete safe.reporter_phone;
+    delete safe.reporter_email;
+    // Reporter name only when the reporter explicitly opted in to be public
+    if (safe.reporter_visibility !== 'public') {
+        delete safe.reporter_name;
+    }
+    // The imposter photo is large and is served separately via
+    // GET /api/events/:id/picture, so never inline its base64 here.
+    delete safe.imposter_picture;
+    // Proof files are heavy too; only the full event-detail view needs them.
+    if (!includeProofs) {
+        delete safe.scam_proofs;
+    }
+    return safe;
+}
+
 // Initialize MongoDB Connection
 async function connectToDatabase() {
     try {
@@ -164,12 +187,14 @@ app.get('/api/search', async (req, res) => {
         const fraudEvents = db.collection('fraud_events');
 
         // Use text search with text index for much faster performance
-        const eventMatches = await fraudEvents.find({
-            status: 'approved',
-            $text: { $search: query }
-        }).toArray();
+        // Exclude heavy base64 blobs (and reporter PII) at the DB level so
+        // Atlas never ships megabytes of attachments for a text search.
+        const eventMatches = await fraudEvents.find(
+            { status: 'approved', $text: { $search: query } },
+            { projection: { scam_proofs: 0, imposter_picture: 0, reporter_phone: 0, reporter_email: 0 } }
+        ).toArray();
 
-        res.json(eventMatches);
+        res.json(eventMatches.map(e => sanitizeEvent(e)));
     } catch (err) {
         // Fallback to regex search if text search fails or text index doesn't exist
         try {
@@ -190,9 +215,9 @@ app.get('/api/search', async (req, res) => {
                     { description: regexPattern },
                     { scam_location: regexPattern }
                 ]
-            }).toArray();
+            }, { projection: { scam_proofs: 0, imposter_picture: 0, reporter_phone: 0, reporter_email: 0 } }).toArray();
 
-            res.json(eventMatches);
+            res.json(eventMatches.map(e => sanitizeEvent(e)));
         } catch (fallbackErr) {
             res.status(500).json({ error: err.message });
         }
@@ -206,8 +231,13 @@ app.get('/api/events/:id/details', async (req, res) => {
         const fraudEvents = db.collection('fraud_events');
         const cheaterProfiles = db.collection('cheater_profiles');
 
-        const event = await fraudEvents.findOne({ _id: eventId, status: 'approved' });
-        
+        // Photo is fetched separately via /api/events/:id/picture, so exclude
+        // its (potentially multi-MB) base64 from this JSON payload.
+        const event = await fraudEvents.findOne(
+            { _id: eventId, status: 'approved' },
+            { projection: { imposter_picture: 0 } }
+        );
+
         if (!event) {
             return res.status(404).json({ error: 'Event not found' });
         }
@@ -219,11 +249,35 @@ app.get('/api/events/:id/details', async (req, res) => {
         }
 
         res.json({
-            event: event,
+            event: sanitizeEvent(event, { includeProofs: true }),
             profile: profile
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/events/:id/picture - Stream the imposter photo for an approved event.
+// Kept separate from the JSON endpoints so search/detail payloads stay small
+// and the browser can lazily cache images per displayed card.
+app.get('/api/events/:id/picture', async (req, res) => {
+    try {
+        const eventId = new ObjectId(req.params.id);
+        const event = await db.collection('fraud_events').findOne(
+            { _id: eventId, status: 'approved' },
+            { projection: { imposter_picture: 1 } }
+        );
+
+        if (!event || !event.imposter_picture || !event.imposter_picture.data) {
+            return res.status(404).end();
+        }
+
+        const pic = event.imposter_picture;
+        res.set('Content-Type', pic.mimetype || 'application/octet-stream');
+        res.set('Cache-Control', 'public, max-age=86400');
+        return res.send(Buffer.from(pic.data, 'base64'));
+    } catch (err) {
+        return res.status(404).end();
     }
 });
 
@@ -240,16 +294,16 @@ app.get('/api/profiles/:id', async (req, res) => {
             return res.status(404).json({ error: "Profile not found" });
         }
 
-        const events = await fraudEvents.find({
-            profile_id: profileId,
-            status: 'approved'
-        }).toArray();
+        const events = await fraudEvents.find(
+            { profile_id: profileId, status: 'approved' },
+            { projection: { scam_proofs: 0, imposter_picture: 0, reporter_phone: 0, reporter_email: 0 } }
+        ).toArray();
 
         const idents = await identifiersCollection.find({
             profile_id: profileId
         }).project({ identifier_type: 1, identifier_value: 1 }).toArray();
 
-        res.json({ profile, events, identifiers: idents });
+        res.json({ profile, events: events.map(e => sanitizeEvent(e)), identifiers: idents });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -525,14 +579,18 @@ app.patch('/api/admin/events/:id/:action', async (req, res) => {
         const cheaterProfiles = db.collection('cheater_profiles');
 
         // Update event status
+        const statusUpdate = {
+            status,
+            [action === 'approve' ? 'approved_at' : 'rejected_at']: timestamp
+        };
+        // Persist the moderator's rejection reason (sent by admin.html) so it
+        // can be shown in the Deleted Events tab. Without this it was dropped.
+        if (action === 'reject') {
+            statusUpdate.rejection_reason = req.body.rejection_reason || 'No reason specified';
+        }
         await fraudEvents.updateOne(
             { _id: eventId },
-            {
-                $set: {
-                    status,
-                    [action === 'approve' ? 'approved_at' : 'rejected_at']: timestamp
-                }
-            }
+            { $set: statusUpdate }
         );
 
         if (status === 'approved') {
@@ -786,19 +844,33 @@ app.get('/api/admin/imposters', async (req, res) => {
 
         // Enrich with event stats
         const enriched = await Promise.all(profiles.map(async (profile) => {
-            const events = await fraudEvents.find({ profile_id: profile._id, status: 'approved' }).toArray();
+            const events = await fraudEvents.find(
+                { profile_id: profile._id, status: 'approved' },
+                { projection: { loss_amount: 1, approved_at: 1 } }
+            ).toArray();
             const totalLoss = events.reduce((sum, e) => sum + (e.loss_amount || 0), 0);
             
             // Get phone from identifiers
             const phoneIdentifier = await identifiersCollection.findOne({ profile_id: profile._id, identifier_type: 'phone' });
             const phone = phoneIdentifier ? phoneIdentifier.identifier_value : 'N/A';
 
+            // Most recent approval time. Math.max returns a number, so wrap it
+            // back into a Date before calling toISOString(); guard against
+            // missing/invalid approved_at values.
+            const approvedTimes = events
+                .map(e => (e.approved_at ? new Date(e.approved_at).getTime() : NaN))
+                .filter(t => !isNaN(t));
+            const lastActive = approvedTimes.length > 0
+                ? new Date(Math.max(...approvedTimes)).toISOString()
+                : null;
+
             return {
+                id: profile._id,
                 name: profile.display_name,
                 phone: phone,
                 scam_count: events.length,
                 total_loss: totalLoss,
-                last_active: events.length > 0 ? Math.max(...events.map(e => new Date(e.approved_at))).toISOString() : null
+                last_active: lastActive
             };
         }));
 

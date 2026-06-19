@@ -110,6 +110,10 @@
                     <p class="text-slate-600 text-sm font-semibold mb-2">Social Media Account</p>
                     <p><a id="social-media" href="#" target="_blank" class="text-blue-600 hover:underline break-all">-</a></p>
                 </div>
+
+                <div id="profile-link-section" class="hidden">
+                    <a id="profile-link" href="#" class="inline-block bg-purple-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-purple-700 transition">👤 View Full Fraudster Profile →</a>
+                </div>
             </div>
 
             <!-- Evidence/Proofs Section -->
@@ -178,9 +182,14 @@
                 // Update page title
                 document.title = `${event.imposter_name || 'Fraud Report'} - ${event.scam_type} | Fraud-Checker-BD`;
 
-                // Set imposter avatar
+                // Set imposter avatar — load the photo from the dedicated image
+                // endpoint. If there is no photo the <img> errors out and the
+                // first-letter fallback underneath stays visible.
                 const avatarDiv = document.getElementById('imposter-avatar');
-                avatarDiv.textContent = (event.imposter_name || '?').charAt(0).toUpperCase();
+                const avatarLetter = (event.imposter_name || '?').charAt(0).toUpperCase();
+                const picUrl = `/api/events/${eventId}/picture`;
+                avatarDiv.classList.add('relative', 'overflow-hidden');
+                avatarDiv.innerHTML = `${avatarLetter}<img src="${picUrl}" alt="Imposter photo" class="absolute inset-0 w-full h-full object-cover cursor-pointer" onclick="openImageModal('${picUrl}')" onerror="this.remove()">`;
 
                 // Populate imposter details
                 document.getElementById('event-title').textContent = event.imposter_name || 'Unknown Imposter';
@@ -276,6 +285,13 @@
                 }
 
                 document.getElementById('report-date').textContent = `📅 Reported on ${new Date(event.submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+
+                // Link to the consolidated fraudster profile, when this event
+                // has been merged into one.
+                if (data.profile && data.profile._id) {
+                    document.getElementById('profile-link-section').classList.remove('hidden');
+                    document.getElementById('profile-link').href = `/imposter-profile.html?id=${data.profile._id}`;
+                }
 
                 // Set share link
                 const shareLink = `${window.location.origin}${window.location.pathname}?id=${eventId}`;
