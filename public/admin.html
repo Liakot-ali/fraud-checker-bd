@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Control Panel | Fraud-Checker-BD</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/shared.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans">
     <!-- Login Block -->
@@ -137,30 +138,54 @@
         let token = "";
         let currentEventId = null;
         let currentEventStatus = null;
+        const PAGE = 20;
+        const listSkip = {};
 
-        // Login
+        const LISTS = {
+            live:      { url: '/api/admin/events/live',      container: 'live-events',    empty: 'No live events at this time', render: renderEventCard, status: 'live' },
+            pending:   { url: '/api/admin/moderation-queue', container: 'pending-events', empty: 'No pending events',           render: renderEventCard, status: 'pending' },
+            deleted:   { url: '/api/admin/events/rejected',  container: 'deleted-events', empty: 'No deleted events',           render: renderEventCard, status: 'deleted' },
+            imposters: { url: '/api/admin/imposters',        container: 'imposters-list', empty: 'No fraudsters in database',   render: renderImposterCard },
+            reporters: { url: '/api/admin/reporters',        container: 'reporters-list', empty: 'No reporters yet',            render: renderReporterCard }
+        };
+
+        // Authenticated fetch — attaches the JWT and handles expired sessions.
+        async function api(url, options = {}) {
+            const opts = Object.assign({}, options);
+            opts.headers = Object.assign({}, options.headers, { 'Authorization': 'Bearer ' + token });
+            let res;
+            try { res = await fetch(url, opts); }
+            catch (e) { alert('Network error: ' + e.message); return null; }
+            if (res.status === 401) { handle401(); return null; }
+            try { return await res.json(); } catch (e) { return null; }
+        }
+        function handle401() {
+            alert('Your admin session has expired. Please log in again.');
+            logout();
+        }
+
         async function login() {
             const username = document.getElementById('user').value;
             const password = document.getElementById('pass').value;
-
-            const res = await fetch('/api/admin/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await res.json();
-            if (data.success) {
+            let data;
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                data = await res.json();
+            } catch (e) { alert('Login error: ' + e.message); return; }
+            if (data && data.success) {
                 token = data.token;
                 document.getElementById('login-block').classList.add('hidden');
                 document.getElementById('admin-block').classList.remove('hidden');
-                loadAllData();
+                reloadAll();
             } else {
-                alert('Invalid credentials');
+                alert((data && data.error) || 'Invalid credentials');
             }
         }
 
-        // Logout
         function logout() {
             token = "";
             document.getElementById('admin-block').classList.add('hidden');
@@ -168,499 +193,236 @@
             location.reload();
         }
 
-        // Load all data
-        async function loadAllData() {
-            await loadLiveEvents();
-            await loadPendingEvents();
-            await loadDeletedEvents();
-            await loadImposters();
-            await loadReporters();
+        function reloadAll() {
+            Object.keys(LISTS).forEach(k => loadList(k, false));
         }
 
-        // Switch tabs
         function switchTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.add('hidden');
-            });
-
-            // Remove active from all buttons
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('border-green-500', 'text-green-400');
                 btn.classList.add('border-transparent', 'text-slate-400');
             });
-
-            // Show selected tab
             document.getElementById(tabName + '-tab').classList.remove('hidden');
-
-            // Set active button
-            event.target.classList.remove('border-transparent', 'text-slate-400');
-            event.target.classList.add('border-green-500', 'text-green-400');
-
-            // Reload data if needed
-            if (tabName === 'live') loadLiveEvents();
-            if (tabName === 'pending') loadPendingEvents();
-            if (tabName === 'deleted') loadDeletedEvents();
-            if (tabName === 'imposters') loadImposters();
-            if (tabName === 'reporters') loadReporters();
+            if (typeof event !== 'undefined' && event.target) {
+                event.target.classList.remove('border-transparent', 'text-slate-400');
+                event.target.classList.add('border-green-500', 'text-green-400');
+            }
+            if (LISTS[tabName]) loadList(tabName, false);
         }
 
-        // Helper: Format date
-        function formatDate(date) {
-            return new Date(date).toLocaleString();
+        // ---- generic paginated list loader ----
+        async function loadList(kind, append) {
+            const cfg = LISTS[kind];
+            const container = document.getElementById(cfg.container);
+            if (!append) { listSkip[kind] = 0; container.innerHTML = ''; }
+            const items = await api(`${cfg.url}?limit=${PAGE}&skip=${listSkip[kind] || 0}`);
+            if (items === null) return;
+            const list = Array.isArray(items) ? items : [];
+            if (!append && list.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">${cfg.empty}</div>`;
+                setMore(kind, false);
+                return;
+            }
+            container.insertAdjacentHTML('beforeend', list.map(it => cfg.render(it, cfg.status)).join(''));
+            listSkip[kind] = (listSkip[kind] || 0) + list.length;
+            setMore(kind, list.length === PAGE);
+        }
+        function setMore(kind, show) {
+            const container = document.getElementById(LISTS[kind].container);
+            let wrap = document.getElementById(kind + '-more');
+            if (!wrap) {
+                wrap = document.createElement('div');
+                wrap.id = kind + '-more';
+                wrap.className = 'text-center mt-4';
+                const b = document.createElement('button');
+                b.className = 'bg-slate-700 hover:bg-slate-600 px-5 py-2 rounded-lg text-sm font-semibold transition';
+                b.textContent = 'Load more';
+                b.addEventListener('click', () => loadList(kind, true));
+                wrap.appendChild(b);
+                container.parentNode.appendChild(wrap);
+            }
+            wrap.classList.toggle('hidden', !show);
         }
 
-        // Helper: Calculate days since
-        function daysSince(date) {
-            const days = Math.floor((new Date() - new Date(date)) / (1000 * 60 * 60 * 24));
-            return days > 0 ? days + ' days' : 'Today';
-        }
+        // ---- card renderers (every value escaped) ----
+        function shortDesc(d) { d = d || ''; return d.length > 100 ? d.substring(0, 100) + '...' : d; }
 
-        // Helper: Truncate text
-        function truncate(text, length) {
-            return text.length > length ? text.substring(0, length) + '...' : text;
-        }
-
-        // Load Live Events
-        async function loadLiveEvents() {
-            try {
-                const res = await fetch('/api/admin/events/live');
-                const events = await res.json();
-                const container = document.getElementById('live-events');
-
-                if (!Array.isArray(events) || events.length === 0) {
-                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No live events at this time</div>';
-                    return;
-                }
-
-                container.innerHTML = events.map(e => `
-                    <div onclick="viewEventDetails('${e._id}', 'live')" class="bg-gradient-to-br from-green-900/30 to-slate-800 border border-green-700/50 rounded-lg p-5 cursor-pointer hover:border-green-500 transition shadow-lg">
-                        <div class="flex justify-between items-start mb-3">
-                            <div>
-                                <h3 class="text-lg font-bold text-green-400">${e.scam_type}</h3>
-                                <p class="text-xs text-slate-400">Live since: ${daysSince(e.approved_at)}</p>
-                            </div>
-                            <span class="bg-green-500/20 text-green-400 text-xs px-3 py-1 rounded-full border border-green-500/30 font-semibold">LIVE</span>
+        function renderEventCard(e, status) {
+            const c = {
+                live:    { wrap: 'from-green-900/30 to-slate-800 border-green-700/50 hover:border-green-500', title: 'text-green-400', badge: 'bg-green-500/20 text-green-400 border-green-500/30', label: 'LIVE' },
+                pending: { wrap: 'from-amber-900/30 to-slate-800 border-amber-700/50 hover:border-amber-500', title: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: 'PENDING' },
+                deleted: { wrap: 'from-red-900/30 to-slate-800 border-red-700/50 hover:border-red-500', title: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/30', label: 'REJECTED' }
+            }[status];
+            const sub = status === 'live' ? `Live since ${FC.timeAgo(e.approved_at)}`
+                : status === 'pending' ? `Submitted: ${FC.fmtDateTime(e.submitted_at)}`
+                : `Rejected ${FC.timeAgo(e.rejected_at)}`;
+            const footer = status === 'deleted'
+                ? `<div class="text-xs text-red-500">Reason: ${FC.val(e.rejection_reason, 'Not specified')}</div>`
+                : status === 'live'
+                    ? `<div class="text-xs text-slate-500">Approved: ${FC.fmtDateTime(e.approved_at)}</div>`
+                    : `<div class="text-xs text-slate-500">Awaiting action...</div>`;
+            return `
+                <div onclick="viewEventDetails('${FC.escapeHtml(e._id)}', '${status}')" class="bg-gradient-to-br ${c.wrap} border rounded-lg p-5 cursor-pointer transition shadow-lg">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="text-lg font-bold ${c.title}">${FC.val(e.scam_type, 'Unknown Scam')}</h3>
+                            <p class="text-xs text-slate-400">${sub}</p>
                         </div>
-                        <p class="text-sm text-slate-300 mb-3">${truncate(e.description, 100)}</p>
-                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                            <div>💰 Loss: ৳${e.loss_amount?.toLocaleString() || '0'}</div>
-                            <div>📝 ${e.loss_item}</div>
-                            <div>👤 ${e.imposter_name}</div>
-                            <div>📋 ${e.reporter_name}</div>
-                        </div>
-                        <div class="text-xs text-slate-500">Approved: ${formatDate(e.approved_at)}</div>
+                        <span class="${c.badge} text-xs px-3 py-1 rounded-full border font-semibold">${c.label}</span>
                     </div>
-                `).join('');
-            } catch (err) {
-                console.error('Error loading live events:', err);
-            }
-        }
-
-        // Load Pending Events
-        async function loadPendingEvents() {
-            try {
-                const res = await fetch('/api/admin/moderation-queue');
-                const events = await res.json();
-                const container = document.getElementById('pending-events');
-
-                if (!Array.isArray(events) || events.length === 0) {
-                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No pending events</div>';
-                    return;
-                }
-
-                container.innerHTML = events.map(e => `
-                    <div onclick="viewEventDetails('${e._id}', 'pending')" class="bg-gradient-to-br from-amber-900/30 to-slate-800 border border-amber-700/50 rounded-lg p-5 cursor-pointer hover:border-amber-500 transition shadow-lg">
-                        <div class="flex justify-between items-start mb-3">
-                            <div>
-                                <h3 class="text-lg font-bold text-amber-400">${e.scam_type}</h3>
-                                <p class="text-xs text-slate-400">Submitted: ${formatDate(e.submitted_at)}</p>
-                            </div>
-                            <span class="bg-amber-500/20 text-amber-400 text-xs px-3 py-1 rounded-full border border-amber-500/30 font-semibold">PENDING</span>
-                        </div>
-                        <p class="text-sm text-slate-300 mb-3">${truncate(e.description, 100)}</p>
-                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                            <div>💰 Loss: ৳${e.loss_amount?.toLocaleString() || '0'}</div>
-                            <div>📝 ${e.loss_item}</div>
-                            <div>👤 ${e.imposter_name}</div>
-                            <div>📋 ${e.reporter_name}</div>
-                        </div>
-                        <div class="text-xs text-slate-500">Awaiting action...</div>
+                    <p class="text-sm text-slate-300 mb-3">${FC.escapeHtml(shortDesc(e.description))}</p>
+                    <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                        <div>💰 Loss: ${FC.money(e.loss_amount)}</div>
+                        <div>📝 ${FC.val(e.loss_item, 'N/A')}</div>
+                        <div>👤 ${FC.val(e.imposter_name, 'N/A')}</div>
+                        <div>📋 ${FC.val(e.reporter_name, 'N/A')}</div>
                     </div>
-                `).join('');
-            } catch (err) {
-                console.error('Error loading pending events:', err);
-            }
+                    ${footer}
+                </div>`;
         }
-
-        // Load Deleted Events
-        async function loadDeletedEvents() {
-            try {
-                const res = await fetch('/api/admin/events/rejected');
-                const events = await res.json();
-                const container = document.getElementById('deleted-events');
-
-                if (!Array.isArray(events) || events.length === 0) {
-                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No deleted events</div>';
-                    return;
-                }
-
-                container.innerHTML = events.map(e => `
-                    <div onclick="viewEventDetails('${e._id}', 'deleted')" class="bg-gradient-to-br from-red-900/30 to-slate-800 border border-red-700/50 rounded-lg p-5 cursor-pointer hover:border-red-500 transition shadow-lg">
-                        <div class="flex justify-between items-start mb-3">
-                            <div>
-                                <h3 class="text-lg font-bold text-red-400">${e.scam_type}</h3>
-                                <p class="text-xs text-slate-400">Rejected: ${daysSince(e.rejected_at)} ago</p>
-                            </div>
-                            <span class="bg-red-500/20 text-red-400 text-xs px-3 py-1 rounded-full border border-red-500/30 font-semibold">REJECTED</span>
-                        </div>
-                        <p class="text-sm text-slate-300 mb-3">${truncate(e.description, 100)}</p>
-                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                            <div>💰 Loss: ৳${e.loss_amount?.toLocaleString() || '0'}</div>
-                            <div>📝 ${e.loss_item}</div>
-                            <div>👤 ${e.imposter_name}</div>
-                            <div>📋 ${e.reporter_name}</div>
-                        </div>
-                        <div class="text-xs text-red-500">Reason: ${e.rejection_reason || 'Not specified'}</div>
+        function renderImposterCard(im) {
+            return `
+                <a href="/imposter-profile.html?id=${encodeURIComponent(im.id)}" target="_blank" class="block bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-purple-500 transition">
+                    <h3 class="text-lg font-bold text-purple-400 mb-2">${FC.val(im.name, 'Unknown')} <span class="text-xs text-slate-500 font-normal">↗ view profile</span></h3>
+                    <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                        <div>📱 ${FC.val(im.phone, 'N/A')}</div>
+                        <div>🎯 Scams: ${im.scam_count || 0}</div>
+                        <div>💰 Total Loss: ${FC.money(im.total_loss)}</div>
+                        <div>📍 Last Active: ${im.last_active ? FC.fmtDateTime(im.last_active) : 'N/A'}</div>
                     </div>
-                `).join('');
-            } catch (err) {
-                console.error('Error loading deleted events:', err);
-            }
+                </a>`;
         }
-
-        // Load Imposters
-        async function loadImposters() {
-            try {
-                const res = await fetch('/api/admin/imposters');
-                const imposters = await res.json();
-                const container = document.getElementById('imposters-list');
-
-                if (!Array.isArray(imposters) || imposters.length === 0) {
-                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No fraudsters in database</div>';
-                    return;
-                }
-
-                container.innerHTML = imposters.map(imposter => `
-                    <a href="/imposter-profile.html?id=${imposter.id}" target="_blank" class="block bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-purple-500 transition">
-                        <h3 class="text-lg font-bold text-purple-400 mb-2">${imposter.name} <span class="text-xs text-slate-500 font-normal">↗ view profile</span></h3>
-                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                            <div>📱 ${imposter.phone || 'N/A'}</div>
-                            <div>🎯 Scams: ${imposter.scam_count || 0}</div>
-                            <div>💰 Total Loss: ৳${imposter.total_loss?.toLocaleString() || '0'}</div>
-                            <div>📍 Last Active: ${imposter.last_active ? formatDate(imposter.last_active) : 'N/A'}</div>
-                        </div>
-                    </a>
-                `).join('');
-            } catch (err) {
-                console.error('Error loading imposters:', err);
-            }
-        }
-
-        // Load Reporters
-        async function loadReporters() {
-            try {
-                const res = await fetch('/api/admin/reporters');
-                const reporters = await res.json();
-                const container = document.getElementById('reporters-list');
-
-                if (!Array.isArray(reporters) || reporters.length === 0) {
-                    container.innerHTML = '<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">No reporters yet</div>';
-                    return;
-                }
-
-                container.innerHTML = reporters.map(reporter => `
-                    <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-blue-500 transition">
-                        <h3 class="text-lg font-bold text-blue-400 mb-2">${reporter.name}</h3>
-                        <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                            <div>📱 ${reporter.phone || 'N/A'}</div>
-                            <div>📧 ${reporter.email || 'N/A'}</div>
-                            <div>📝 Reports: ${reporter.report_count || 0}</div>
-                            <div>✅ Approved: ${reporter.approved_count || 0}</div>
-                        </div>
-                        <p class="text-xs text-slate-500 mt-2">First Report: ${reporter.first_report ? formatDate(reporter.first_report) : 'N/A'}</p>
+        function renderReporterCard(r) {
+            return `
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-blue-500 transition">
+                    <h3 class="text-lg font-bold text-blue-400 mb-2">${FC.val(r.name, 'Anonymous')}</h3>
+                    <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
+                        <div>📱 ${FC.val(r.phone, 'N/A')}</div>
+                        <div>📧 ${FC.val(r.email, 'N/A')}</div>
+                        <div>📝 Reports: ${r.report_count || 0}</div>
+                        <div>✅ Approved: ${r.approved_count || 0}</div>
                     </div>
-                `).join('');
-            } catch (err) {
-                console.error('Error loading reporters:', err);
-            }
+                    <p class="text-xs text-slate-500 mt-2">First Report: ${r.first_report ? FC.fmtDateTime(r.first_report) : 'N/A'}</p>
+                </div>`;
         }
 
-        // View Event Details
+        // ---- detail modal ----
         async function viewEventDetails(eventId, status) {
             currentEventId = eventId;
             currentEventStatus = status;
+            const data = await api(`/api/admin/events/${encodeURIComponent(eventId)}/details`);
+            if (!data) return;
+            if (!data.event) { alert('Event not found'); return; }
+            const event = data.event;
+            const tokenQ = 'token=' + encodeURIComponent(token);
+            const picSrc = `/api/events/${encodeURIComponent(eventId)}/picture?${tokenQ}`;
+            const proofs = Array.isArray(event.scam_proofs) ? event.scam_proofs : [];
+            const proofsHtml = proofs.length ? proofs.map((p, idx) => {
+                const url = `/api/events/${encodeURIComponent(eventId)}/proofs/${idx}?${tokenQ}`;
+                const name = FC.escapeHtml(p.name || ('Proof ' + (idx + 1)));
+                if ((p.mimetype || '').startsWith('image')) {
+                    return `<a href="${url}" target="_blank"><img src="${url}" alt="${name}" class="w-full h-28 object-cover rounded border border-slate-700"></a>`;
+                }
+                const icon = (p.mimetype || '').startsWith('video') ? '🎥' : '📄';
+                return `<div class="bg-slate-800 border border-slate-700 rounded p-2 text-center"><div class="text-2xl">${icon}</div><a href="${url}" class="text-xs text-blue-400 hover:underline break-all">${name}</a></div>`;
+            }).join('') : '<p class="text-slate-400 text-sm">No proof files were attached.</p>';
+            const photoHtml = event.imposter_picture
+                ? `<img src="${picSrc}" alt="Imposter" class="w-28 h-28 object-cover rounded-lg border border-slate-700" onerror="this.style.display='none'">`
+                : '<p class="text-slate-400 text-sm">No imposter photo uploaded.</p>';
+            const altPhones = Array.isArray(event.alt_phones) && event.alt_phones.length
+                ? `<div class="col-span-2"><p class="text-slate-400 text-xs">Alternative Phones</p><p class="text-slate-300 font-mono">${event.alt_phones.map(FC.escapeHtml).join(', ')}</p></div>` : '';
 
-            try {
-                const res = await fetch(`/api/admin/events/${eventId}/details`);
-                const data = await res.json();
-                const event = data.event;
-
-                // Build evidence (imposter photo + proof files) markup so the
-                // moderator can actually review what was submitted.
-                const picUrl = event.imposter_picture && event.imposter_picture.data
-                    ? `data:${event.imposter_picture.mimetype};base64,${event.imposter_picture.data}`
-                    : null;
-                const proofsHtml = (event.scam_proofs && event.scam_proofs.length > 0)
-                    ? event.scam_proofs.map(p => {
-                        const url = `data:${p.mimetype};base64,${p.data}`;
-                        if (p.mimetype && p.mimetype.startsWith('image')) {
-                            return `<a href="${url}" target="_blank"><img src="${url}" alt="${p.name}" class="w-full h-28 object-cover rounded border border-slate-700"></a>`;
-                        }
-                        const icon = p.mimetype && p.mimetype.startsWith('video') ? '🎥' : '📄';
-                        return `<div class="bg-slate-800 border border-slate-700 rounded p-2 text-center"><div class="text-2xl">${icon}</div><a href="${url}" download="${p.name}" class="text-xs text-blue-400 hover:underline break-all">${p.name}</a></div>`;
-                    }).join('')
-                    : '<p class="text-slate-400 text-sm">No proof files were attached.</p>';
-                const evidenceHtml = `
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-amber-400 mb-3">📸 Evidence</h3>
-                            <div class="mb-4">
-                                <p class="text-slate-400 text-xs mb-2">Imposter Photo</p>
-                                ${picUrl
-                                    ? `<a href="${picUrl}" target="_blank"><img src="${picUrl}" alt="Imposter" class="w-28 h-28 object-cover rounded-lg border border-slate-700"></a>`
-                                    : '<p class="text-slate-400 text-sm">No imposter photo uploaded.</p>'}
-                            </div>
-                            <div>
-                                <p class="text-slate-400 text-xs mb-2">Proof Files (${(event.scam_proofs || []).length})</p>
-                                <div class="grid grid-cols-3 gap-3">${proofsHtml}</div>
-                            </div>
-                        </div>
-                `;
-
-                const modalContent = `
-                    <div class="space-y-6">
-                        <!-- Imposter Details -->
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-purple-400 mb-3">👤 Imposter Details</h3>
-                            <div class="grid grid-cols-2 gap-4 text-sm mb-4">
-                                <div>
-                                    <p class="text-slate-400 text-xs">Name</p>
-                                    <p class="text-white font-semibold">${event.imposter_name}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Nickname</p>
-                                    <p class="text-slate-300">${event.imposter_nickname || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Phone</p>
-                                    <p class="text-slate-300 font-mono">${event.imposter_phone}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">NID</p>
-                                    <p class="text-slate-300">${event.imposter_nid || 'N/A'}</p>
-                                </div>
-                                <div class="col-span-2">
-                                    <p class="text-slate-400 text-xs">Address</p>
-                                    <p class="text-slate-300">${event.imposter_address || 'N/A'}</p>
-                                </div>
-                                <div class="col-span-2">
-                                    <p class="text-slate-400 text-xs">Social Media</p>
-                                    <p class="text-slate-300">${event.social_media_account ? `<a href="${event.social_media_account}" target="_blank" class="text-blue-400 hover:underline">${event.social_media_account}</a>` : 'N/A'}</p>
-                                </div>
-                                ${event.alt_phones && event.alt_phones.length > 0 ? `
-                                    <div class="col-span-2">
-                                        <p class="text-slate-400 text-xs">Alternative Phones</p>
-                                        <p class="text-slate-300 font-mono">${event.alt_phones.join(', ')}</p>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        </div>
-
-                        <!-- Scam Details -->
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-green-400 mb-3">🎯 Scam Details</h3>
-                            <div class="grid grid-cols-2 gap-4 text-sm mb-4">
-                                <div>
-                                    <p class="text-slate-400 text-xs">Type</p>
-                                    <p class="text-white font-semibold">${event.scam_type}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Loss Item</p>
-                                    <p class="text-slate-300">${event.loss_item}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Loss Amount</p>
-                                    <p class="text-red-400 font-semibold">৳${event.loss_amount?.toLocaleString() || '0'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Location</p>
-                                    <p class="text-slate-300">${event.scam_location || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">GD Number</p>
-                                    <p class="text-slate-300">${event.gd_number || 'N/A'}</p>
-                                </div>
-                            </div>
-                            <div>
-                                <p class="text-slate-400 text-xs mb-2">Description</p>
-                                <p class="text-slate-200 text-sm leading-relaxed bg-slate-800/50 p-3 rounded border border-slate-700">${event.description}</p>
-                            </div>
-                        </div>
-
-                        ${evidenceHtml}
-
-                        <!-- Reporter Details -->
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">📋 Reporter Details</h3>
-                            <div class="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <p class="text-slate-400 text-xs">Name</p>
-                                    <p class="text-white font-semibold">${event.reporter_name}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Visibility</p>
-                                    <p class="text-slate-300 capitalize">${event.reporter_visibility || 'public'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Phone</p>
-                                    <p class="text-slate-300">${event.reporter_phone || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <p class="text-slate-400 text-xs">Email</p>
-                                    <p class="text-slate-300">${event.reporter_email || 'N/A'}</p>
-                                </div>
-                                <div class="col-span-2">
-                                    <p class="text-slate-400 text-xs">Submitted</p>
-                                    <p class="text-slate-300">${formatDate(event.submitted_at)}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Event Status -->
-                        <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                            <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">📊 Event Status</h3>
-                            <div class="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <p class="text-slate-400 text-xs">Status</p>
-                                    <p class="text-white font-semibold capitalize">${event.status}</p>
-                                </div>
-                                ${event.approved_at ? `
-                                    <div>
-                                        <p class="text-slate-400 text-xs">Approved</p>
-                                        <p class="text-green-400">${formatDate(event.approved_at)}</p>
-                                    </div>
-                                ` : ''}
-                                ${event.rejected_at ? `
-                                    <div>
-                                        <p class="text-slate-400 text-xs">Rejected</p>
-                                        <p class="text-red-400">${formatDate(event.rejected_at)}</p>
-                                    </div>
-                                    <div>
-                                        <p class="text-slate-400 text-xs">Reason</p>
-                                        <p class="text-slate-300">${event.rejection_reason || 'N/A'}</p>
-                                    </div>
-                                ` : ''}
-                            </div>
+            document.getElementById('modal-content').innerHTML = `
+                <div class="space-y-6">
+                    <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
+                        <h3 class="text-sm font-bold uppercase text-purple-400 mb-3">👤 Imposter Details</h3>
+                        <div class="grid grid-cols-2 gap-4 text-sm mb-4">
+                            <div><p class="text-slate-400 text-xs">Name</p><p class="text-white font-semibold">${FC.val(event.imposter_name, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">Nickname</p><p class="text-slate-300">${FC.val(event.imposter_nickname, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">Phone</p><p class="text-slate-300 font-mono">${FC.val(event.imposter_phone, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">NID</p><p class="text-slate-300">${FC.val(event.imposter_nid, 'N/A')}</p></div>
+                            <div class="col-span-2"><p class="text-slate-400 text-xs">Address</p><p class="text-slate-300">${FC.val(event.imposter_address, 'N/A')}</p></div>
+                            <div class="col-span-2"><p class="text-slate-400 text-xs">Social Media</p><p class="text-slate-300">${event.social_media_account ? FC.socialLink(event.social_media_account) : 'N/A'}</p></div>
+                            ${altPhones}
                         </div>
                     </div>
-                `;
+                    <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
+                        <h3 class="text-sm font-bold uppercase text-green-400 mb-3">🎯 Scam Details</h3>
+                        <div class="grid grid-cols-2 gap-4 text-sm mb-4">
+                            <div><p class="text-slate-400 text-xs">Type</p><p class="text-white font-semibold">${FC.val(event.scam_type, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">Loss Item</p><p class="text-slate-300">${FC.val(event.loss_item, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">Loss Amount</p><p class="text-red-400 font-semibold">${FC.money(event.loss_amount)}</p></div>
+                            <div><p class="text-slate-400 text-xs">Location</p><p class="text-slate-300">${FC.val(event.scam_location, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">GD Number</p><p class="text-slate-300">${FC.val(event.gd_number, 'N/A')}</p></div>
+                        </div>
+                        <div><p class="text-slate-400 text-xs mb-2">Description</p><p class="text-slate-200 text-sm leading-relaxed bg-slate-800/50 p-3 rounded border border-slate-700 whitespace-pre-line">${FC.escapeHtml(event.description || '')}</p></div>
+                    </div>
+                    <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
+                        <h3 class="text-sm font-bold uppercase text-amber-400 mb-3">📸 Evidence</h3>
+                        <div class="mb-4"><p class="text-slate-400 text-xs mb-2">Imposter Photo</p>${photoHtml}</div>
+                        <div><p class="text-slate-400 text-xs mb-2">Proof Files (${proofs.length})</p><div class="grid grid-cols-3 gap-3">${proofsHtml}</div></div>
+                    </div>
+                    <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
+                        <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">📋 Reporter Details</h3>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><p class="text-slate-400 text-xs">Name</p><p class="text-white font-semibold">${FC.val(event.reporter_name, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">Visibility</p><p class="text-slate-300 capitalize">${FC.val(event.reporter_visibility, 'public')}</p></div>
+                            <div><p class="text-slate-400 text-xs">Phone</p><p class="text-slate-300">${FC.val(event.reporter_phone, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">Email</p><p class="text-slate-300">${FC.val(event.reporter_email, 'N/A')}</p></div>
+                            <div class="col-span-2"><p class="text-slate-400 text-xs">Submitted</p><p class="text-slate-300">${FC.fmtDateTime(event.submitted_at)}</p></div>
+                        </div>
+                    </div>
+                    <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
+                        <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">📊 Event Status</h3>
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div><p class="text-slate-400 text-xs">Status</p><p class="text-white font-semibold capitalize">${FC.val(event.status, 'N/A')}</p></div>
+                            ${event.approved_at ? `<div><p class="text-slate-400 text-xs">Approved</p><p class="text-green-400">${FC.fmtDateTime(event.approved_at)}</p></div>` : ''}
+                            ${event.rejected_at ? `<div><p class="text-slate-400 text-xs">Rejected</p><p class="text-red-400">${FC.fmtDateTime(event.rejected_at)}</p></div><div><p class="text-slate-400 text-xs">Reason</p><p class="text-slate-300">${FC.val(event.rejection_reason, 'N/A')}</p></div>` : ''}
+                        </div>
+                    </div>
+                </div>`;
 
-                document.getElementById('modal-content').innerHTML = modalContent;
-
-                // Set action buttons based on status
-                let actions = '<button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>';
-
-                if (status === 'pending') {
-                    actions = `
-                        <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>
-                        <button onclick="editRequest()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit Request</button>
-                        <button onclick="rejectEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Reject</button>
-                        <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Approve</button>
-                    `;
-                } else if (status === 'live') {
-                    actions = `
-                        <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>
-                        <button onclick="editRequest()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit Request</button>
-                        <button onclick="deleteEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Delete</button>
-                    `;
-                } else if (status === 'deleted') {
-                    actions = `
-                        <button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>
-                        <button onclick="editRequest()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit Request</button>
-                        <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Re-approve</button>
-                    `;
-                }
-
-                document.getElementById('modal-actions').innerHTML = actions;
-                document.getElementById('detail-modal').classList.remove('hidden');
-            } catch (err) {
-                alert('Error loading event details: ' + err.message);
+            let actions = '<button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>';
+            if (status === 'pending') {
+                actions += `
+                    <button onclick="rejectEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Reject</button>
+                    <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Approve</button>`;
+            } else if (status === 'live') {
+                actions += `<button onclick="deleteEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Delete</button>`;
+            } else if (status === 'deleted') {
+                actions += `<button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Re-approve</button>`;
             }
+            document.getElementById('modal-actions').innerHTML = actions;
+            document.getElementById('detail-modal').classList.remove('hidden');
         }
 
-        // Approve Event
         async function approveEvent() {
-            try {
-                const res = await fetch(`/api/admin/events/${currentEventId}/approve`, {
-                    method: 'PATCH',
-                    headers: { 'Authorization': token }
-                });
-                const data = await res.json();
-                alert(data.message);
-                closeModal();
-                loadAllData();
-            } catch (err) {
-                alert('Error: ' + err.message);
-            }
+            const data = await api(`/api/admin/events/${encodeURIComponent(currentEventId)}/approve`, { method: 'PATCH' });
+            if (!data) return;
+            alert(data.message || 'Approved'); closeModal(); reloadAll();
         }
-
-        // Reject Event
         async function rejectEvent() {
             const reason = prompt('Enter rejection reason:');
             if (!reason) return;
-
-            try {
-                const res = await fetch(`/api/admin/events/${currentEventId}/reject`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token
-                    },
-                    body: JSON.stringify({ rejection_reason: reason })
-                });
-                const data = await res.json();
-                alert(data.message);
-                closeModal();
-                loadAllData();
-            } catch (err) {
-                alert('Error: ' + err.message);
-            }
+            const data = await api(`/api/admin/events/${encodeURIComponent(currentEventId)}/reject`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rejection_reason: reason })
+            });
+            if (!data) return;
+            alert(data.message || 'Rejected'); closeModal(); reloadAll();
         }
-
-        // Delete Event
         async function deleteEvent() {
             if (!confirm('Are you sure you want to delete this event?')) return;
-
-            try {
-                const res = await fetch(`/api/admin/events/${currentEventId}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': token }
-                });
-                const data = await res.json();
-                alert(data.message);
-                closeModal();
-                loadAllData();
-            } catch (err) {
-                alert('Error: ' + err.message);
-            }
+            const data = await api(`/api/admin/events/${encodeURIComponent(currentEventId)}`, { method: 'DELETE' });
+            if (!data) return;
+            alert(data.message || 'Deleted'); closeModal(); reloadAll();
         }
-
-        // Edit Request
-        function editRequest() {
-            alert('Edit request feature coming soon. Reporter will be notified to update their submission.');
-        }
-
-        // Close Modal
         function closeModal() {
             document.getElementById('detail-modal').classList.add('hidden');
-            currentEventId = null;
-            currentEventStatus = null;
+            currentEventId = null; currentEventStatus = null;
         }
-
-        // Close modal when clicking outside
-        document.getElementById('detail-modal').addEventListener('click', function(e) {
-            if (e.target === this) closeModal();
-        });
+        document.getElementById('detail-modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
     </script>
 </body>
 </html>

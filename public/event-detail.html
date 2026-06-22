@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fraud Event Details | Fraud-Checker-BD</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/shared.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
     <!-- Navigation -->
@@ -108,7 +109,7 @@
 
                 <div id="social-media-section" class="mb-6 hidden">
                     <p class="text-slate-600 text-sm font-semibold mb-2">Social Media Account</p>
-                    <p><a id="social-media" href="#" target="_blank" class="text-blue-600 hover:underline break-all">-</a></p>
+                    <p id="social-media-wrap" class="break-all">-</p>
                 </div>
 
                 <div id="profile-link-section" class="hidden">
@@ -179,123 +180,95 @@
 
                 const event = data.event;
 
-                // Update page title
-                document.title = `${event.imposter_name || 'Fraud Report'} - ${event.scam_type} | Fraud-Checker-BD`;
+                // Update page title (textContent context, XSS-safe)
+                document.title = `${event.imposter_name || 'Fraud Report'} - ${event.scam_type || 'Report'} | Fraud-Checker-BD`;
 
-                // Set imposter avatar — load the photo from the dedicated image
-                // endpoint. If there is no photo the <img> errors out and the
-                // first-letter fallback underneath stays visible.
+                // Set imposter avatar — photo from the dedicated endpoint, with
+                // a first-letter fallback if there is no photo.
                 const avatarDiv = document.getElementById('imposter-avatar');
-                const avatarLetter = (event.imposter_name || '?').charAt(0).toUpperCase();
-                const picUrl = `/api/events/${eventId}/picture`;
+                const avatarLetter = FC.escapeHtml((event.imposter_name || '?').charAt(0).toUpperCase());
+                const picUrl = `/api/events/${encodeURIComponent(eventId)}/picture`;
                 avatarDiv.classList.add('relative', 'overflow-hidden');
                 avatarDiv.innerHTML = `${avatarLetter}<img src="${picUrl}" alt="Imposter photo" class="absolute inset-0 w-full h-full object-cover cursor-pointer" onclick="openImageModal('${picUrl}')" onerror="this.remove()">`;
 
-                // Populate imposter details
+                // Header / summary
                 document.getElementById('event-title').textContent = event.imposter_name || 'Unknown Imposter';
-                document.getElementById('loss-amount').textContent = event.loss_amount ? `৳${event.loss_amount.toLocaleString()}` : 'Not specified';
-                document.getElementById('scam-type').textContent = event.scam_type || '-';
-                document.getElementById('location').textContent = event.scam_location || event.address || '-';
+                document.getElementById('loss-amount').textContent = FC.money(event.loss_amount);
+                document.getElementById('scam-type').textContent = event.scam_type || 'Not provided';
+                document.getElementById('location').textContent = event.scam_location || event.address || 'Not provided';
 
                 // Fraud details
-                document.getElementById('loss-item').textContent = event.loss_item || '-';
+                document.getElementById('loss-item').textContent = event.loss_item || 'Not provided';
                 document.getElementById('gd-number').textContent = event.gd_number || 'Not filed';
                 document.getElementById('description').textContent = event.description || 'No description provided';
 
-                // Imposter details
-                document.getElementById('imposter-name').textContent = event.imposter_name || '-';
-                document.getElementById('imposter-phone').textContent = event.imposter_phone || '-';
-
-                // Nickname
-                if (event.imposter_nickname) {
-                    document.getElementById('imposter-nickname').textContent = event.imposter_nickname;
-                }
-
-                // NID
-                if (event.imposter_nid) {
-                    document.getElementById('imposter-nid').textContent = event.imposter_nid;
-                }
-
-                // Address
+                // Imposter details (textContent is XSS-safe)
+                document.getElementById('imposter-name').textContent = event.imposter_name || 'Not provided';
+                document.getElementById('imposter-phone').textContent = event.imposter_phone || 'Not provided';
+                if (event.imposter_nickname) document.getElementById('imposter-nickname').textContent = event.imposter_nickname;
+                if (event.imposter_nid) document.getElementById('imposter-nid').textContent = event.imposter_nid;
                 if (event.imposter_address) {
                     document.getElementById('address-section').classList.remove('hidden');
                     document.getElementById('imposter-address').textContent = event.imposter_address;
                 }
 
-                // Alternative phones
+                // Alternative phones (escaped)
                 if (event.alt_phones && event.alt_phones.length > 0) {
                     document.getElementById('alt-phones-section').classList.remove('hidden');
                     document.getElementById('alt-phones').innerHTML = event.alt_phones
-                        .map(phone => `<p class="text-slate-800 font-mono bg-slate-50 p-2 rounded border border-slate-200">${phone}</p>`)
+                        .map(phone => `<p class="text-slate-800 font-mono bg-slate-50 p-2 rounded border border-slate-200">${FC.escapeHtml(phone)}</p>`)
                         .join('');
                 }
 
-                // Social media
+                // Social media — only real http(s) links become anchors, escaped.
                 if (event.social_media_account) {
                     document.getElementById('social-media-section').classList.remove('hidden');
-                    const socialLink = document.getElementById('social-media');
-                    socialLink.href = event.social_media_account;
-                    socialLink.textContent = event.social_media_account;
+                    document.getElementById('social-media-wrap').innerHTML = FC.socialLink(event.social_media_account);
                 }
 
-                // Proofs
+                // Proofs — streamed from the server (no inline base64).
                 if (event.scam_proofs && event.scam_proofs.length > 0) {
                     document.getElementById('proofs-section').classList.remove('hidden');
-                    const proofsContainer = document.getElementById('proofs-container');
-                    proofsContainer.innerHTML = event.scam_proofs.map((proof, idx) => {
-                        const isImage = proof.mimetype && proof.mimetype.startsWith('image');
-                        const isVideo = proof.mimetype && proof.mimetype.startsWith('video');
-                        const dataUrl = `data:${proof.mimetype};base64,${proof.data}`;
-
-                        if (isImage) {
-                            return `
-                                <div class="bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
-                                    <img src="${dataUrl}" alt="Proof ${idx + 1}" class="w-full h-48 object-cover cursor-pointer" onclick="openImageModal('${dataUrl}')">
-                                    <p class="p-3 text-xs text-slate-600 font-semibold">${proof.name}</p>
-                                </div>
-                            `;
-                        } else if (isVideo) {
-                            return `
-                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                                    <div class="bg-slate-200 rounded-lg h-40 flex items-center justify-center mb-2">🎥</div>
-                                    <p class="text-xs text-slate-600 font-semibold">${proof.name}</p>
-                                    <a href="${dataUrl}" download="${proof.name}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Download Video</a>
-                                </div>
-                            `;
-                        } else {
-                            return `
-                                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                                    <div class="text-3xl mb-2">📄</div>
-                                    <p class="text-xs text-slate-600 font-semibold">${proof.name}</p>
-                                    <a href="${dataUrl}" download="${proof.name}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Download</a>
-                                </div>
-                            `;
+                    document.getElementById('proofs-container').innerHTML = event.scam_proofs.map((proof, idx) => {
+                        const url = `/api/events/${encodeURIComponent(eventId)}/proofs/${idx}`;
+                        const name = FC.escapeHtml(proof.name || ('Proof ' + (idx + 1)));
+                        const type = proof.mimetype || '';
+                        if (type.startsWith('image')) {
+                            return `<div class="bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
+                                <img src="${url}" alt="${name}" class="w-full h-48 object-cover cursor-pointer" onclick="openImageModal('${url}')">
+                                <p class="p-3 text-xs text-slate-600 font-semibold">${name}</p></div>`;
                         }
+                        if (type.startsWith('video')) {
+                            return `<div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                                <div class="bg-slate-200 rounded-lg h-40 flex items-center justify-center mb-2 text-3xl">🎥</div>
+                                <p class="text-xs text-slate-600 font-semibold">${name}</p>
+                                <a href="${url}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Open / Download Video</a></div>`;
+                        }
+                        return `<div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                            <div class="text-3xl mb-2">📄</div>
+                            <p class="text-xs text-slate-600 font-semibold">${name}</p>
+                            <a href="${url}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Open / Download</a></div>`;
                     }).join('');
                 }
 
                 // Reporter info
-                const reporterVisibility = event.reporter_visibility || 'private';
-                if (reporterVisibility === 'public' && event.reporter_name) {
+                if (event.reporter_visibility === 'public' && event.reporter_name) {
                     document.getElementById('reporter-name').textContent = event.reporter_name;
                     document.getElementById('reporter-visibility').textContent = 'Reporter details are public';
                 } else {
                     document.getElementById('reporter-name').textContent = 'Anonymous';
                     document.getElementById('reporter-visibility').textContent = 'Reporter information is private (per reporter request)';
                 }
+                document.getElementById('report-date').textContent = `📅 Reported on ${FC.fmtDate(event.submitted_at)}`;
 
-                document.getElementById('report-date').textContent = `📅 Reported on ${new Date(event.submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`;
-
-                // Link to the consolidated fraudster profile, when this event
-                // has been merged into one.
+                // Link to the consolidated fraudster profile when present.
                 if (data.profile && data.profile._id) {
                     document.getElementById('profile-link-section').classList.remove('hidden');
-                    document.getElementById('profile-link').href = `/imposter-profile.html?id=${data.profile._id}`;
+                    document.getElementById('profile-link').href = `/imposter-profile.html?id=${encodeURIComponent(data.profile._id)}`;
                 }
 
-                // Set share link
-                const shareLink = `${window.location.origin}${window.location.pathname}?id=${eventId}`;
-                document.getElementById('share-link').value = shareLink;
+                // Share link
+                document.getElementById('share-link').value = `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(eventId)}`;
 
                 // Show content
                 document.getElementById('loading').classList.add('hidden');

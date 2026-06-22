@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Imposter Profile | Fraud-Checker-BD</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/shared.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
     <!-- Navigation -->
@@ -133,13 +134,13 @@
                 document.title = `${displayName} - Imposter Profile | Fraud-Checker-BD`;
                 document.getElementById('imposter-name').textContent = displayName;
 
-                // Header avatar — attempt the photo of the first linked incident;
-                // if none exists the <img> errors out and the letter shows.
+                // Header avatar — photo of the first linked incident, letter fallback.
                 const avatarEl = document.getElementById('imposter-avatar');
                 const firstEventId = events[0] && events[0]._id;
+                const letter = FC.escapeHtml(displayName.charAt(0).toUpperCase());
                 if (firstEventId) {
                     avatarEl.classList.add('relative', 'overflow-hidden');
-                    avatarEl.innerHTML = `${displayName.charAt(0).toUpperCase()}<img src="/api/events/${firstEventId}/picture" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">`;
+                    avatarEl.innerHTML = `${letter}<img src="/api/events/${encodeURIComponent(firstEventId)}/picture" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">`;
                 } else {
                     avatarEl.textContent = displayName.charAt(0).toUpperCase();
                 }
@@ -150,58 +151,42 @@
                 const uniqueNIDs = new Set();
                 let lastActiveDate = null;
 
-                // Seed phones/NIDs from the consolidated identifiers list
                 identifiers.forEach(idn => {
                     if (!idn.identifier_value) return;
                     if (idn.identifier_type === 'phone') uniquePhones.add(idn.identifier_value);
                     if (idn.identifier_type === 'nid') uniqueNIDs.add(idn.identifier_value);
                 });
-
                 events.forEach(e => {
                     if (e.imposter_phone) uniquePhones.add(e.imposter_phone);
                     if (Array.isArray(e.alt_phones)) e.alt_phones.forEach(p => p && uniquePhones.add(p));
                     if (e.imposter_nid) uniqueNIDs.add(e.imposter_nid);
                     const when = e.approved_at || e.submitted_at;
-                    if (when) {
-                        const d = new Date(when);
-                        if (!isNaN(d) && (!lastActiveDate || d > lastActiveDate)) lastActiveDate = d;
-                    }
+                    if (when) { const d = new Date(when); if (!isNaN(d) && (!lastActiveDate || d > lastActiveDate)) lastActiveDate = d; }
                 });
 
                 document.getElementById('incident-count').textContent = events.length;
-                document.getElementById('total-loss').textContent = totalLoss ? `৳${totalLoss.toLocaleString()}` : '৳0';
-                document.getElementById('last-active').textContent = lastActiveDate
-                    ? lastActiveDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                    : 'Unknown';
+                document.getElementById('total-loss').textContent = FC.money(totalLoss);
+                document.getElementById('last-active').textContent = lastActiveDate ? FC.fmtDate(lastActiveDate) : 'Unknown';
 
-                // Contact Information
+                // Contact Information (escaped)
                 document.getElementById('contact-info').innerHTML = `
                     <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
                         <p class="text-sm text-slate-600 font-semibold mb-2">Phone Numbers (${uniquePhones.size})</p>
                         <div class="space-y-2">
-                            ${Array.from(uniquePhones).map(phone => `
-                                <p class="text-slate-800 font-mono bg-white p-2 rounded border border-slate-200 text-sm">${phone}</p>
-                            `).join('') || '<p class="text-slate-600 text-sm">No phone numbers found</p>'}
+                            ${Array.from(uniquePhones).map(phone => `<p class="text-slate-800 font-mono bg-white p-2 rounded border border-slate-200 text-sm">${FC.escapeHtml(phone)}</p>`).join('') || '<p class="text-slate-600 text-sm">No phone numbers found</p>'}
                         </div>
                     </div>
                     ${uniqueNIDs.size > 0 ? `
                         <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
                             <p class="text-sm text-slate-600 font-semibold mb-2">NID Numbers (${uniqueNIDs.size})</p>
                             <div class="space-y-2">
-                                ${Array.from(uniqueNIDs).map(nid => `
-                                    <p class="text-slate-800 bg-white p-2 rounded border border-slate-200 text-sm">${nid}</p>
-                                `).join('')}
+                                ${Array.from(uniqueNIDs).map(nid => `<p class="text-slate-800 bg-white p-2 rounded border border-slate-200 text-sm">${FC.escapeHtml(nid)}</p>`).join('')}
                             </div>
-                        </div>
-                    ` : ''}
+                        </div>` : ''}
                 `;
 
-                // Profile Details — take nickname/address/social from the first
-                // linked event that has each value.
-                const firstWith = (field) => {
-                    const ev = events.find(e => e[field]);
-                    return ev ? ev[field] : null;
-                };
+                // Profile Details (escaped; social only real links)
+                const firstWith = (field) => { const ev = events.find(e => e[field]); return ev ? ev[field] : null; };
                 const nickname = firstWith('imposter_nickname');
                 const address = firstWith('imposter_address');
                 const social = firstWith('social_media_account');
@@ -209,49 +194,45 @@
                 let profileHTML = `
                     <div>
                         <p class="text-slate-600 text-sm font-semibold mb-2">Full Name</p>
-                        <p class="text-slate-900 font-bold text-lg">${displayName}</p>
-                    </div>
-                `;
+                        <p class="text-slate-900 font-bold text-lg">${FC.escapeHtml(displayName)}</p>
+                    </div>`;
                 if (nickname) profileHTML += `
                     <div>
                         <p class="text-slate-600 text-sm font-semibold mb-2">Nickname / Pseudonym</p>
-                        <p class="text-slate-900 text-lg">${nickname}</p>
+                        <p class="text-slate-900 text-lg">${FC.escapeHtml(nickname)}</p>
                     </div>`;
                 if (address) profileHTML += `
                     <div>
                         <p class="text-slate-600 text-sm font-semibold mb-2">Known Address</p>
-                        <p class="text-slate-900 text-lg">${address}</p>
+                        <p class="text-slate-900 text-lg">${FC.escapeHtml(address)}</p>
                     </div>`;
                 if (social) profileHTML += `
                     <div>
                         <p class="text-slate-600 text-sm font-semibold mb-2">Social Media</p>
-                        <a href="${social}" target="_blank" class="text-blue-600 hover:underline text-lg break-all">${social}</a>
+                        ${FC.socialLink(social)}
                     </div>`;
                 document.getElementById('profile-details').innerHTML = profileHTML;
 
-                // Incident History
+                // Incident History (escaped)
                 const incidentsDiv = document.getElementById('incidents-container');
                 if (events.length === 0) {
                     incidentsDiv.innerHTML = '<p class="text-slate-500">No public incidents are linked to this profile yet.</p>';
                 } else {
                     incidentsDiv.innerHTML = events.map(e => `
-                        <a href="/event-detail.html?id=${e._id}" class="block bg-slate-50 border border-slate-200 rounded-lg p-6 hover:border-red-500 hover:shadow-lg transition">
+                        <a href="/event-detail.html?id=${encodeURIComponent(e._id)}" class="block bg-slate-50 border border-slate-200 rounded-lg p-6 hover:border-red-500 hover:shadow-lg transition">
                             <div class="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 class="font-bold text-slate-900 text-lg">${e.scam_type || 'Unknown Scam'}</h3>
-                                    <p class="text-xs text-slate-500 mt-1">📅 ${new Date(e.approved_at || e.submitted_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                    <h3 class="font-bold text-slate-900 text-lg">${FC.val(e.scam_type, 'Unknown Scam')}</h3>
+                                    <p class="text-xs text-slate-500 mt-1">📅 ${FC.fmtDate(e.approved_at || e.submitted_at)}</p>
                                 </div>
-                                <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-bold">
-                                    ${e.loss_amount ? `৳${e.loss_amount.toLocaleString()}` : 'Unknown'}
-                                </span>
+                                <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-bold">${FC.money(e.loss_amount)}</span>
                             </div>
-                            <p class="text-slate-700 text-sm mb-3 line-clamp-2">${e.description || ''}</p>
+                            <p class="text-slate-700 text-sm mb-3 line-clamp-2">${FC.escapeHtml(e.description || '')}</p>
                             <div class="flex gap-4 text-xs text-slate-600">
-                                <span>📝 ${e.loss_item || 'N/A'}</span>
-                                <span>📍 ${e.scam_location || 'Location not provided'}</span>
+                                <span>📝 ${FC.val(e.loss_item, 'N/A')}</span>
+                                <span>📍 ${FC.val(e.scam_location, 'Location not provided')}</span>
                             </div>
-                        </a>
-                    `).join('');
+                        </a>`).join('');
                 }
 
                 // Show content
