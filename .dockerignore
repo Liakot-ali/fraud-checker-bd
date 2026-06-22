@@ -1,0 +1,10 @@
+node_modules
+.env
+.env.local
+.git
+.github
+*.log
+npm-debug.log*
+tests
+src
+.DS_Store

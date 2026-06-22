@@ -64,6 +64,42 @@
     return '<span class="break-all">' + escapeHtml(v) + '</span>';
   }
 
+  function truncate(text, n) {
+    text = text || '';
+    return text.length > n ? text.substring(0, n) + '…' : text;
+  }
+
+  // Non-blocking, screen-reader-announced toast (replaces alert() for info/errors).
+  function toast(message, type) {
+    var container = document.getElementById('fc-toasts');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'fc-toasts';
+      container.setAttribute('aria-live', 'polite');
+      container.setAttribute('aria-atomic', 'true');
+      container.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;max-width:22rem';
+      document.body.appendChild(container);
+    }
+    var colors = { success: '#16a34a', error: '#dc2626', info: '#2563eb' };
+    var el = document.createElement('div');
+    el.setAttribute('role', 'status');
+    el.style.cssText = 'background:' + (colors[type] || colors.info) + ';color:#fff;padding:.6rem .9rem;border-radius:.5rem;box-shadow:0 4px 12px rgba(0,0,0,.2);font-size:.875rem;line-height:1.35';
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(function () {
+      el.style.transition = 'opacity .3s';
+      el.style.opacity = '0';
+      setTimeout(function () { el.remove(); }, 300);
+    }, 3800);
+  }
+
+  // Register an Escape-key handler (used to make modals keyboard-dismissable).
+  function onEscape(handler) {
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') handler();
+    });
+  }
+
   global.FC = {
     EMPTY: EMPTY,
     escapeHtml: escapeHtml,
@@ -73,6 +109,9 @@
     fmtDateTime: fmtDateTime,
     timeAgo: timeAgo,
     money: money,
-    socialLink: socialLink
+    socialLink: socialLink,
+    truncate: truncate,
+    toast: toast,
+    onEscape: onEscape
   };
 })(window);

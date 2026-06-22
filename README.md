@@ -1,41 +1,119 @@
-# Fraud-checker-bd 🇧🇩
+# Fraud-Checker-BD 🇧🇩
 
-An open-source, web-based fraud reporting, verification, and search platform designed to help individuals, consumers, and businesses identify scammers, fraudulent agents, or corrupt companies before entering a deal. 
-
-The primary mission of this project is to prevent recurring fraud by mapping isolated scam incidents into unified, searchable identity profiles.
-
----
-
-## 🚀 Key Features & Constraints Met
-
-- **🔒 Separate User & Admin Paradigms:** Dedicated interfaces separate the public directory from the administrative verification terminal.
-- **⚡ Unauthenticated Public Reporting:** Victims can quickly report fraud events, list losses, provide scam classifications, and append identification fields without needing to log in or create an account.
-- **🛡️ Secure Administrative Moderation:** All incoming reports enter a protected, hidden holding queue. Only authenticated administrators can inspect, approve, or reject incidents.
-- **🔄 Smart Identity Consolidation Engine:** When an incident is approved, the system automatically checks its phone numbers and unique identifiers against existing database structures. If a match is found, the incident is seamlessly merged into that culprit's existing "Cheater Profile" to build an immutable history.
-- **🔍 Normalized Search Index:** Advanced text normalization strips non-alphanumeric characters, enabling high-accuracy searches by name, phone number, National ID (NID), or trade registration number.
+A community-driven fraud reporting, verification, and search platform that maps isolated
+scam incidents into unified, searchable fraudster profiles — so people can check a name,
+phone number, or NID **before** trusting someone with their money.
 
 ---
 
-## 🛠️ Technology Stack
+## Features
 
-To ensure that the project is accessible, lightweight, and highly maintainable for open-source developers, the first draft relies on a clean, zero-build ecosystem:
+- **Public, no-login reporting** — victims submit imposter details, scam details, evidence
+  files, and (optionally hidden) reporter contact info.
+- **Admin moderation queue** — JWT-protected console to review evidence and approve / reject
+  / delete reports, with an audit trail.
+- **Identity consolidation** — on approval, an incident is matched (by any phone or NID) to an
+  existing fraudster profile, or a new one is created.
+- **Fast normalized search** — Unicode-aware text search by name, nickname, phone, NID, GD
+  number, scam type, location, or description.
+- **Evidence handling** — photos and proof files are stored in **GridFS** and streamed on
+  demand (never inlined into JSON), keeping responses small and fast.
 
-- **Runtime Environment:** Node.js
-- **Backend Framework:** Express.js (REST API Endpoints)
-- **Database Engine:** SQLite3 (Relational in-memory architecture for rapid prototype testing)
-- **Frontend Architecture:** Clean HTML5, JavaScript (Fetch API), and utility-first responsive styling via Tailwind CSS CDN.
+## Tech stack
 
----
+| Layer     | Choice |
+|-----------|--------|
+| Runtime   | Node.js (≥ 18) |
+| Backend   | Express.js REST API |
+| Database  | MongoDB (Atlas) + GridFS for uploads |
+| Auth      | JWT (bcrypt-hashed passwords), rate-limited login |
+| Security  | helmet + Content-Security-Policy, server-side validation, output escaping |
+| Frontend  | HTML + vanilla JS (Fetch API) + Tailwind CSS (built locally, no CDN) |
 
-## 📂 Project Structure
+## Getting started
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Configure environment (see below)
+cp .env.example .env   # then edit values
+
+# 3. Build the stylesheet (committed, but rebuild after UI changes)
+npm run build:css
+
+# 4. Run
+npm start              # http://localhost:3000
+```
+
+Default admin login is seeded on first run: **`admin` / `admin123`** — change it before any
+real deployment.
+
+### Environment variables (`.env`)
+
+| Variable       | Required | Description |
+|----------------|----------|-------------|
+| `MONGODB_URI`  | yes      | MongoDB connection string |
+| `DB_NAME`      | no       | Database name (default `fraud_checker_db`) |
+| `PORT`         | no       | HTTP port (default `3000`) |
+| `JWT_SECRET`   | yes\*    | Secret for signing admin sessions. \*If unset, an ephemeral one is generated and sessions reset on restart. |
+
+## Scripts
+
+| Command            | Description |
+|--------------------|-------------|
+| `npm start`        | Start the server |
+| `npm test`         | Run the unit tests (`node --test`) |
+| `npm run lint`     | ESLint |
+| `npm run format`   | Prettier (JS/JSON/MD) |
+| `npm run build:css`| Build `public/tailwind.css` from `src/input.css` |
+
+## API overview
+
+Public:
+- `GET  /api/search?q=&limit=&skip=` — search approved reports
+- `GET  /api/events/:id/details` — one approved report (+ linked profile)
+- `GET  /api/events/:id/picture` — stream imposter photo
+- `GET  /api/events/:id/proofs/:index` — stream a proof file
+- `GET  /api/profiles/:id` — consolidated fraudster profile
+- `POST /api/events` — submit a report (multipart)
+- `GET  /healthz` — liveness probe
+
+Admin (require `Authorization: Bearer <jwt>`):
+- `POST   /api/admin/login`
+- `GET    /api/admin/moderation-queue` · `/events/live` · `/events/rejected`
+- `GET    /api/admin/events/:id/details`
+- `PATCH  /api/admin/events/:id/approve` · `/reject`
+- `DELETE /api/admin/events/:id`
+- `GET    /api/admin/imposters` · `/api/admin/reporters`
+
+## Project structure
 
 ```text
-Fraud-checker-bd/
-├── package.json              # Node.js project manifest and dependency tracker
-├── server.js                 # Central Express app, REST routing, and SQLite schema
-├── DEVELOPER_GUIDE.txt       # Local architectural blueprint and functional steps
-├── README.md                 # Project manifesto and GitHub orientation (This file)
-└── public/                   # Client-side user interface directory
-    ├── index.html            # Public landing page, search engine, and profile browser
-    ├── submit.html           # Public unauthenticated fraud incident reporting form
-    └── admin.html            # Protected administrative authentication and moderation console
+fraud-checker-bd/
+├── server.js            # Express app, routes, DB init/migrations
+├── lib/util.js          # Pure helpers + constants + validation (unit-tested)
+├── tests/util.test.js   # node:test unit tests
+├── src/input.css        # Tailwind entry (built to public/tailwind.css)
+├── public/              # Static frontend
+│   ├── shared.js        # Shared client helpers (escaping, formatting, toasts)
+│   ├── index.html       # Search + landing
+│   ├── submit.html      # Report form
+│   ├── event-detail.html, imposter-profile.html
+│   └── admin.html       # Moderation console
+├── Dockerfile, docker-compose.yml
+└── .github/workflows/ci.yml
+```
+
+## Docker
+
+```bash
+docker compose up --build   # reads MONGODB_URI etc. from .env
+```
+
+## Security notes
+
+Passwords are bcrypt-hashed, admin routes are JWT-protected, inputs are validated/coerced
+(blocking NoSQL-operator injection), all user output is escaped client-side, and a CSP is
+applied. Before production: change the seeded admin password and rotate any credentials that
+were shared in plaintext.

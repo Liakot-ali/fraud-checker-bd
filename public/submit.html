@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Report Fraud Allegation | Fraud-checker-bd</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/tailwind.css">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="description" content="Report a fraud incident to Bangladesh's community fraud database. Submit imposter details, scam details, and evidence for review.">
+    <script src="/shared.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
     <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
@@ -375,7 +378,7 @@
 
             // Check total count
             if (uploadedProofs.length + files.length > 20) {
-                alert(`Cannot add ${files.length} file(s). Maximum 20 files total. Current: ${uploadedProofs.length}`);
+                FC.toast(`Cannot add ${files.length} file(s). Maximum 20 files total. Current: ${uploadedProofs.length}`);
                 e.target.value = '';
                 return;
             }
@@ -397,7 +400,7 @@
             const inputCount = container.querySelectorAll('.alt_phone_input').length;
 
             if (inputCount >= 5) {
-                alert('Maximum 5 alternative phone numbers allowed');
+                FC.toast('Maximum 5 alternative phone numbers allowed');
                 return;
             }
 
@@ -426,7 +429,7 @@
             }
 
             if (reporterPhone && !validatePhone(reporterPhone)) {
-                alert('Invalid reporter phone number format');
+                FC.toast('Invalid reporter phone number format');
                 return;
             }
 
@@ -434,7 +437,7 @@
             const altPhoneInputs = document.querySelectorAll('.alt_phone_input');
             for (let input of altPhoneInputs) {
                 if (input.value && !validatePhone(input.value)) {
-                    alert('Invalid alternative phone number format: ' + input.value);
+                    FC.toast('Invalid alternative phone number format: ' + input.value);
                     return;
                 }
             }
@@ -442,13 +445,13 @@
             // Validate description length
             const description = document.getElementById('description').value;
             if (description.length < 30 || description.length > 500) {
-                alert('Description must be between 30 and 500 characters');
+                FC.toast('Description must be between 30 and 500 characters');
                 return;
             }
 
             // Validate at least one proof file
             if (uploadedProofs.length === 0) {
-                alert('Please upload at least one proof file');
+                FC.toast('Please upload at least one proof file');
                 return;
             }
 
@@ -498,13 +501,13 @@
                 const data = await res.json();
                 
                 if (res.ok) {
-                    alert('✓ Report submitted successfully! Thank you for your contribution.');
-                    window.location.href = '/';
+                    FC.toast('✓ Report submitted! Redirecting…', 'success');
+                    setTimeout(() => { window.location.href = '/'; }, 1200);
                 } else {
-                    alert('Error: ' + (data.message || data.error));
+                    FC.toast('Error: ' + (data.message || data.error), 'error');
                 }
             } catch (err) {
-                alert('Submission error: ' + err.message);
+                FC.toast('Submission error: ' + err.message, 'error');
             }
         }
     </script>

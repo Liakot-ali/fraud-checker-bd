@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fraud-Checker-BD | Protect Yourself From Scams</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/tailwind.css">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="description" content="Search Bangladesh's community-driven fraud database. Check names, phone numbers, and NIDs against verified scam reports before you trust someone.">
+    <meta property="og:title" content="Fraud-Checker-BD — Protect Yourself From Scams">
+    <meta property="og:description" content="A community-driven fraud reporting and search platform for Bangladesh.">
+    <meta property="og:type" content="website">
     <script src="/shared.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
@@ -129,7 +134,7 @@
 
     <!-- Event Detail Modal (for quick view) -->
     <div id="event-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-white rounded-2xl max-w-2xl w-full my-8 shadow-2xl">
+        <div class="bg-white rounded-2xl max-w-2xl w-full my-8 shadow-2xl" role="dialog" aria-modal="true" aria-label="Fraud event details">
             <div class="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center">
                 <h2 class="text-2xl font-bold text-slate-900">Fraud Event Details</h2>
                 <button onclick="closeEventModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">×</button>
@@ -194,7 +199,7 @@
 
         async function performSearch() {
             const q = document.getElementById('query').value.trim();
-            if (!q) { alert('Please enter a search term'); return; }
+            if (!q) { FC.toast('Please enter a search term', 'info'); return; }
             currentQuery = q;
             currentSkip = 0;
             document.getElementById('results').innerHTML = '';
@@ -235,7 +240,7 @@
                 resultsTitle.textContent = `Showing ${resultsDiv.children.length} Fraud Report(s)`;
                 loadMoreWrap.classList.toggle('hidden', list.length < PAGE_SIZE);
             } catch (err) {
-                alert('Search error: ' + err.message);
+                FC.toast('Search error: ' + err.message, 'error');
                 console.error(err);
             } finally {
                 searchBtn.disabled = false;
@@ -249,7 +254,7 @@
             try {
                 const res = await fetch(`/api/events/${encodeURIComponent(eventId)}/details`);
                 const data = await res.json();
-                if (!data.event) { alert('Event not found'); return; }
+                if (!data.event) { FC.toast('Event not found', 'error'); return; }
 
                 const event = data.event;
                 const phones = event.imposter_phone ? [event.imposter_phone, ...(event.alt_phones || [])].join(', ') : 'Not provided';
@@ -299,7 +304,7 @@
                 `;
                 document.getElementById('event-modal').classList.remove('hidden');
             } catch (err) {
-                alert('Error loading event details: ' + err.message);
+                FC.toast('Error loading event details: ' + err.message, 'error');
             }
         }
 
@@ -309,6 +314,7 @@
         document.getElementById('event-modal').addEventListener('click', function (e) { if (e.target === this) closeEventModal(); });
         document.getElementById('query').addEventListener('keypress', function (e) { if (e.key === 'Enter') performSearch(); });
         document.getElementById('load-more-btn').addEventListener('click', () => loadResults(true));
+        FC.onEscape(closeEventModal);
     </script>
 </body>
 </html>

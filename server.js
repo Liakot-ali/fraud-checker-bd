@@ -8,6 +8,18 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 require('dotenv').config();
+const {
+    STATUS, VISIBILITY, ROLES,
+    ALLOWED_IMAGE, ALLOWED_PROOF, MAX_PROOFS,
+    normalize, str, escapeRegex, paging, sanitizeEvent, validateSubmission
+} = require('./lib/util');
+
+// Minimal structured (JSON-line) logger — no sensitive payloads, no stack traces
+// leaked to clients (those only ever get a generic message).
+function log(level, msg, extra) {
+    const line = Object.assign({ t: new Date().toISOString(), level, msg }, extra || {});
+    (level === 'error' ? console.error : console.log)(JSON.stringify(line));
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,36 +42,23 @@ if (!MONGODB_URI) {
 let db = null;
 let bucket = null; // GridFS bucket for uploaded files
 
-// ---- canonical enums / config ----
-const VISIBILITY = { PUBLIC: 'public', HIDDEN: 'hidden' };
-const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const ALLOWED_PROOF = [
-    ...ALLOWED_IMAGE,
-    'video/mp4', 'video/quicktime', 'video/webm',
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-];
-const MAX_PROOFS = 20;
-
 // ---- security headers (helmet + CSP) ----
-// 'unsafe-inline' for scripts/styles is a pragmatic compromise: the pages use
-// inline event handlers + the Tailwind CDN. Stored XSS is closed at the source
-// by escaping all user output on the client (see public/shared.js).
+// CSS is now built locally (public/tailwind.css), so no external CDN is needed.
+// 'unsafe-inline' for scripts is a pragmatic compromise: the pages use inline
+// event handlers. Stored XSS is closed at the source by escaping all user
+// output on the client (see public/shared.js), not by this directive.
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", 'https://cdn.tailwindcss.com', "'unsafe-inline'"],
-            // The pages use inline event handlers (onclick/onerror). Allow them
-            // explicitly — helmet's default is script-src-attr 'none', which
-            // would silently break every button. Stored XSS is closed by
-            // escaping all user output (public/shared.js), not by this directive.
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            // Inline event handlers (onclick/onerror) — helmet's default is
+            // script-src-attr 'none', which would silently break every button.
             scriptSrcAttr: ["'unsafe-inline'"],
-            styleSrc: ["'self'", 'https://cdn.tailwindcss.com', 'https://fonts.googleapis.com', "'unsafe-inline'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: ["'self'", 'data:', 'blob:'],
             connectSrc: ["'self'"],
-            fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+            fontSrc: ["'self'", 'data:'],
             objectSrc: ["'none'"],
             frameAncestors: ["'self'"],
             // Do not force https upgrades — this app is served over http on localhost.
@@ -74,55 +73,18 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ===================== Helpers =====================
+// Lightweight request logging for anything that reaches the API (static assets
+// are served above and intentionally not logged).
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => log('info', 'request', { method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - start }));
+    next();
+});
 
-// Unicode-aware normalization: keep letters/numbers of ANY script (so Bengali
-// names no longer collapse to an empty string), drop case/whitespace/punctuation.
-const normalize = (text) =>
-    (text === null || text === undefined)
-        ? ''
-        : String(text).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+// Liveness/readiness probe.
+app.get('/healthz', (req, res) => res.json({ status: db ? 'ok' : 'starting', uptime: Math.round(process.uptime()) }));
 
-// Coerce a request value to a string; anything else (objects from NoSQL
-// injection attempts, arrays, etc.) becomes ''.
-const str = (v) => (typeof v === 'string' ? v : '');
-
-// Escape user input before putting it into a RegExp (prevents regex injection).
-const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-// BD phone validation, mirrors the client-side rule.
-const validPhone = (p) => /^(\+?880|0)?[1-9]\d{9}$/.test(String(p).replace(/[\s\-()]/g, ''));
-
-// Parse pagination params with sane caps.
-function paging(req, defLimit = 20, maxLimit = 100) {
-    let limit = parseInt(req.query.limit, 10);
-    if (isNaN(limit) || limit <= 0) limit = defLimit;
-    limit = Math.min(limit, maxLimit);
-    let skip = parseInt(req.query.skip, 10);
-    if (isNaN(skip) || skip < 0) skip = 0;
-    return { limit, skip };
-}
-
-// Strip sensitive reporter contact info and heavy media from an event before
-// returning it to public, unauthenticated clients. Admin endpoints do NOT use this.
-function sanitizeEvent(event, { includeProofs = false } = {}) {
-    if (!event || typeof event !== 'object') return event;
-    const safe = { ...event };
-    delete safe.reporter_phone;
-    delete safe.reporter_email;
-    if (safe.reporter_visibility !== VISIBILITY.PUBLIC) {
-        delete safe.reporter_name;
-    }
-    // Photo served separately via /api/events/:id/picture.
-    delete safe.imposter_picture;
-    // Proofs metadata only (name/type/size); bytes streamed via /proofs/:index.
-    if (includeProofs && Array.isArray(safe.scam_proofs)) {
-        safe.scam_proofs = safe.scam_proofs.map(p => ({ name: p.name, mimetype: p.mimetype, size: p.size }));
-    } else {
-        delete safe.scam_proofs;
-    }
-    return safe;
-}
+// ===================== Helpers (DB/JWT-bound; pure helpers live in lib/util) =====================
 
 // JWT helpers / auth middleware
 function getToken(req) {
@@ -314,7 +276,7 @@ async function seedSampleData() {
         gd_number: 'GD001',
         reporter_name: 'Test Reporter', reporter_phone: '', reporter_email: '',
         reporter_visibility: VISIBILITY.PUBLIC,
-        status: 'approved', submitted_at: ts, approved_at: ts, rejected_at: null
+        status: STATUS.APPROVED, submitted_at: ts, approved_at: ts, rejected_at: null
     });
     console.log('✓ Seeded sample fraudster profile');
 }
@@ -398,14 +360,14 @@ app.get('/api/search', async (req, res) => {
         let matches;
         try {
             matches = await fraudEvents.find(
-                { status: 'approved', $text: { $search: query } },
+                { status: STATUS.APPROVED, $text: { $search: query } },
                 { projection }
             ).skip(skip).limit(limit).toArray();
         } catch (textErr) {
             // Fallback to a (regex-escaped) search if the text index is unavailable.
             const rx = new RegExp(escapeRegex(query), 'i');
             matches = await fraudEvents.find({
-                status: 'approved',
+                status: STATUS.APPROVED,
                 $or: [
                     { imposter_name: rx }, { imposter_nickname: rx }, { imposter_phone: rx },
                     { alt_phones: rx }, { imposter_nid: rx }, { gd_number: rx },
@@ -424,7 +386,7 @@ app.get('/api/events/:id/details', async (req, res) => {
     try {
         const eventId = new ObjectId(req.params.id);
         const event = await db.collection('fraud_events').findOne(
-            { _id: eventId, status: 'approved' },
+            { _id: eventId, status: STATUS.APPROVED },
             { projection: { imposter_picture: 0, 'scam_proofs.data': 0, 'scam_proofs.file_id': 0 } }
         );
         if (!event) return res.status(404).json({ error: 'Event not found' });
@@ -446,7 +408,7 @@ app.get('/api/events/:id/picture', async (req, res) => {
             { projection: { imposter_picture: 1, status: 1 } }
         );
         if (!event || !event.imposter_picture) return res.status(404).end();
-        if (event.status !== 'approved' && !verifyToken(req)) return res.status(404).end();
+        if (event.status !== STATUS.APPROVED && !verifyToken(req)) return res.status(404).end();
         return streamMedia(res, event.imposter_picture, true);
     } catch (err) {
         return res.status(404).end();
@@ -461,7 +423,7 @@ app.get('/api/events/:id/proofs/:index', async (req, res) => {
             { projection: { scam_proofs: 1, status: 1 } }
         );
         if (!event || !Array.isArray(event.scam_proofs)) return res.status(404).end();
-        if (event.status !== 'approved' && !verifyToken(req)) return res.status(404).end();
+        if (event.status !== STATUS.APPROVED && !verifyToken(req)) return res.status(404).end();
         const proof = event.scam_proofs[parseInt(req.params.index, 10)];
         if (!proof) return res.status(404).end();
         return streamMedia(res, proof, true);
@@ -478,7 +440,7 @@ app.get('/api/profiles/:id', async (req, res) => {
         if (!profile) return res.status(404).json({ error: 'Profile not found' });
 
         const events = await db.collection('fraud_events').find(
-            { profile_id: profileId, status: 'approved' },
+            { profile_id: profileId, status: STATUS.APPROVED },
             { projection: { scam_proofs: 0, imposter_picture: 0, reporter_phone: 0, reporter_email: 0 } }
         ).toArray();
 
@@ -495,45 +457,15 @@ app.get('/api/profiles/:id', async (req, res) => {
 // POST /api/events — public submission
 app.post('/api/events', async (req, res) => {
     try {
-        const b = req.body || {};
-        const imposter_name = str(b.imposter_name).trim();
-        const imposter_phone = str(b.imposter_phone).trim();
-        const scam_type = str(b.scam_type).trim();
-        const loss_item = str(b.loss_item).trim();
-        const description = str(b.description);
-        const reporter_name = str(b.reporter_name).trim();
-        const loss_amount = parseFloat(b.loss_amount);
+        const { error, value } = validateSubmission(req.body);
+        if (error) return res.status(400).json({ error });
 
-        if (!imposter_name || !imposter_phone || !scam_type || !loss_item || !b.loss_amount || !description) {
-            return res.status(400).json({ error: 'Missing required fields.' });
+        // Validate ALL file types/counts BEFORE storing anything, so a bad proof
+        // never leaves an orphaned photo in GridFS.
+        const picFile = (req.files && req.files.imposter_picture) || null;
+        if (picFile && !ALLOWED_IMAGE.includes(picFile.mimetype)) {
+            return res.status(400).json({ error: 'Imposter picture must be a JPEG, PNG, GIF, or WEBP image.' });
         }
-        if (!validPhone(imposter_phone)) return res.status(400).json({ error: 'Invalid imposter phone number format.' });
-        if (description.length < 30 || description.length > 500) {
-            return res.status(400).json({ error: 'Description must be between 30 and 500 characters.' });
-        }
-        if (!reporter_name) return res.status(400).json({ error: 'Reporter name is required.' });
-        const reporter_phone = str(b.reporter_phone).trim();
-        if (reporter_phone && !validPhone(reporter_phone)) return res.status(400).json({ error: 'Invalid reporter phone number format.' });
-
-        // Parse + validate alternative phones
-        let altPhones = [];
-        if (b.alt_phones) {
-            try { const a = JSON.parse(b.alt_phones); if (Array.isArray(a)) altPhones = a.map(String); } catch (e) {}
-        }
-        for (const p of altPhones) {
-            if (!validPhone(p)) return res.status(400).json({ error: 'Invalid alternative phone number format: ' + p });
-        }
-
-        // Validate + store files in GridFS
-        let imposterPicture = null;
-        if (req.files && req.files.imposter_picture) {
-            const f = req.files.imposter_picture;
-            if (!ALLOWED_IMAGE.includes(f.mimetype)) {
-                return res.status(400).json({ error: 'Imposter picture must be a JP, PNG, GIF, or WEBP image.' });
-            }
-            imposterPicture = await storeFile(f);
-        }
-
         let proofFiles = [];
         if (req.files && req.files.scam_proofs) {
             proofFiles = Array.isArray(req.files.scam_proofs) ? req.files.scam_proofs : [req.files.scam_proofs];
@@ -545,6 +477,8 @@ app.post('/api/events', async (req, res) => {
                 return res.status(400).json({ error: `Unsupported proof file type: ${f.name} (${f.mimetype}).` });
             }
         }
+
+        const imposterPicture = picFile ? await storeFile(picFile) : null;
         const scamProofs = [];
         for (const f of proofFiles) scamProofs.push(await storeFile(f));
 
@@ -553,47 +487,47 @@ app.post('/api/events', async (req, res) => {
         const eventPhones = db.collection('event_phones');
         const identifiers = db.collection('identifiers');
 
-        const visibility = str(b.reporter_visibility) === VISIBILITY.HIDDEN ? VISIBILITY.HIDDEN : VISIBILITY.PUBLIC;
-
         const result = await fraudEvents.insertOne({
-            imposter_name, imposter_phone,
-            imposter_normalized_phone: normalize(imposter_phone),
-            imposter_nickname: str(b.imposter_nickname),
-            imposter_nid: str(b.imposter_nid),
-            imposter_address: str(b.imposter_address),
-            social_media_account: str(b.social_media_account),
+            imposter_name: value.imposter_name,
+            imposter_phone: value.imposter_phone,
+            imposter_normalized_phone: normalize(value.imposter_phone),
+            imposter_nickname: value.imposter_nickname,
+            imposter_nid: value.imposter_nid,
+            imposter_address: value.imposter_address,
+            social_media_account: value.social_media_account,
             imposter_picture: imposterPicture,
-            scam_type, loss_item,
-            loss_amount: isFinite(loss_amount) ? loss_amount : 0,
-            description,
-            scam_location: str(b.scam_location),
-            gd_number: str(b.gd_number),
-            alt_phones: altPhones,
+            scam_type: value.scam_type,
+            loss_item: value.loss_item,
+            loss_amount: value.loss_amount,
+            description: value.description,
+            scam_location: value.scam_location,
+            gd_number: value.gd_number,
+            alt_phones: value.alt_phones,
             scam_proofs: scamProofs,
-            reporter_name,
-            reporter_phone,
-            reporter_email: str(b.reporter_email).trim(),
-            reporter_visibility: visibility,
+            reporter_name: value.reporter_name,
+            reporter_phone: value.reporter_phone,
+            reporter_email: value.reporter_email,
+            reporter_visibility: value.reporter_visibility,
             profile_id: null,
-            status: 'pending',
+            status: STATUS.PENDING,
             submitted_at: timestamp,
             approved_at: null,
             rejected_at: null
         });
 
         const eventId = result.insertedId;
-        await eventPhones.insertOne({ event_id: eventId, phone_number: imposter_phone, normalized_phone: normalize(imposter_phone) });
-        for (const phone of altPhones) {
+        await eventPhones.insertOne({ event_id: eventId, phone_number: value.imposter_phone, normalized_phone: normalize(value.imposter_phone) });
+        for (const phone of value.alt_phones) {
             await eventPhones.insertOne({ event_id: eventId, phone_number: phone, normalized_phone: normalize(phone) });
         }
-        await identifiers.insertOne({ profile_id: null, identifier_type: 'imposter_name', identifier_value: imposter_name, normalized_value: normalize(imposter_name) });
-        if (str(b.imposter_nid)) {
-            await identifiers.insertOne({ profile_id: null, identifier_type: 'nid', identifier_value: str(b.imposter_nid), normalized_value: normalize(str(b.imposter_nid)) });
+        await identifiers.insertOne({ profile_id: null, identifier_type: 'imposter_name', identifier_value: value.imposter_name, normalized_value: normalize(value.imposter_name) });
+        if (value.imposter_nid) {
+            await identifiers.insertOne({ profile_id: null, identifier_type: 'nid', identifier_value: value.imposter_nid, normalized_value: normalize(value.imposter_nid) });
         }
 
         res.json({ message: '✓ Fraud report submitted successfully! Your report will be reviewed by our team.', eventId });
     } catch (err) {
-        console.error('Event submission error:', err);
+        log('error', 'Event submission failed', { err: err.message });
         res.status(500).json({ error: 'Could not submit report. Please try again.' });
     }
 });
@@ -619,7 +553,7 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
         const token = jwt.sign(
-            { sub: admin._id.toString(), username: admin.username, role: admin.role || 'admin' },
+            { sub: admin._id.toString(), username: admin.username, role: admin.role || ROLES.ADMIN },
             JWT_SECRET, { expiresIn: '8h' }
         );
         res.json({ success: true, token });
@@ -633,7 +567,7 @@ app.get('/api/admin/moderation-queue', requireAdmin, async (req, res) => {
     try {
         const { limit, skip } = paging(req);
         const events = await db.collection('fraud_events')
-            .find({ status: 'pending' }).sort({ submitted_at: -1 }).skip(skip).limit(limit).toArray();
+            .find({ status: STATUS.PENDING }).sort({ submitted_at: -1 }).skip(skip).limit(limit).toArray();
         res.json(events);
     } catch (err) { res.status(500).json({ error: 'Failed to load queue' }); }
 });
@@ -642,7 +576,7 @@ app.get('/api/admin/events/live', requireAdmin, async (req, res) => {
     try {
         const { limit, skip } = paging(req);
         const events = await db.collection('fraud_events')
-            .find({ status: 'approved' }).sort({ approved_at: -1 }).skip(skip).limit(limit).toArray();
+            .find({ status: STATUS.APPROVED }).sort({ approved_at: -1 }).skip(skip).limit(limit).toArray();
         res.json(events);
     } catch (err) { res.status(500).json({ error: 'Failed to load live events' }); }
 });
@@ -651,7 +585,7 @@ app.get('/api/admin/events/rejected', requireAdmin, async (req, res) => {
     try {
         const { limit, skip } = paging(req);
         const events = await db.collection('fraud_events')
-            .find({ status: 'rejected' }).sort({ rejected_at: -1 }).skip(skip).limit(limit).toArray();
+            .find({ status: STATUS.REJECTED }).sort({ rejected_at: -1 }).skip(skip).limit(limit).toArray();
         res.json(events);
     } catch (err) { res.status(500).json({ error: 'Failed to load rejected events' }); }
 });
@@ -686,7 +620,7 @@ app.patch('/api/admin/events/:id/approve', requireAdmin, async (req, res) => {
         if (!event) return res.status(404).json({ error: 'Event not found' });
 
         const timestamp = new Date().toISOString();
-        await fraudEvents.updateOne({ _id: eventId }, { $set: { status: 'approved', approved_at: timestamp } });
+        await fraudEvents.updateOne({ _id: eventId }, { $set: { status: STATUS.APPROVED, approved_at: timestamp } });
 
         const profileId = await resolveProfile(event, timestamp);
         await fraudEvents.updateOne({ _id: eventId }, { $set: { profile_id: profileId } });
@@ -709,7 +643,7 @@ app.patch('/api/admin/events/:id/reject', requireAdmin, async (req, res) => {
         const reason = str(req.body && req.body.rejection_reason) || 'No reason specified';
         const timestamp = new Date().toISOString();
         await fraudEvents.updateOne({ _id: eventId },
-            { $set: { status: 'rejected', rejected_at: timestamp, rejection_reason: reason } });
+            { $set: { status: STATUS.REJECTED, rejected_at: timestamp, rejection_reason: reason } });
         await audit('reject', eventId, req, { reason });
 
         res.json({ message: '✓ Event rejected successfully' });
@@ -728,7 +662,7 @@ app.delete('/api/admin/events/:id', requireAdmin, async (req, res) => {
 
         const timestamp = new Date().toISOString();
         await fraudEvents.updateOne({ _id: eventId },
-            { $set: { status: 'rejected', rejected_at: timestamp, rejection_reason: 'Admin deletion - live event removed' } });
+            { $set: { status: STATUS.REJECTED, rejected_at: timestamp, rejection_reason: 'Admin deletion - live event removed' } });
         await audit('delete', eventId, req);
 
         res.json({ message: '✓ Event deleted successfully' });
@@ -746,7 +680,7 @@ app.get('/api/admin/imposters', requireAdmin, async (req, res) => {
                 from: 'fraud_events',
                 let: { pid: '$_id' },
                 pipeline: [
-                    { $match: { $expr: { $and: [{ $eq: ['$profile_id', '$$pid'] }, { $eq: ['$status', 'approved'] }] } } },
+                    { $match: { $expr: { $and: [{ $eq: ['$profile_id', '$$pid'] }, { $eq: ['$status', STATUS.APPROVED] }] } } },
                     { $project: { loss_amount: 1, approved_at: 1 } }
                 ],
                 as: 'evs'
@@ -792,7 +726,7 @@ app.get('/api/admin/reporters', requireAdmin, async (req, res) => {
                 phone: { $first: '$reporter_phone' },
                 email: { $first: '$reporter_email' },
                 report_count: { $sum: 1 },
-                approved_count: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] } },
+                approved_count: { $sum: { $cond: [{ $eq: ['$status', STATUS.APPROVED] }, 1, 0] } },
                 first_report: { $min: '$submitted_at' }
             } },
             { $sort: { report_count: -1 } },
@@ -811,7 +745,23 @@ app.get('/api/admin/reporters', requireAdmin, async (req, res) => {
     }
 });
 
-// Start server after connecting to database
-connectToDatabase().then(() => {
-    app.listen(PORT, () => console.log(`✓ Fraud-checker-bd operational framework running on port ${PORT}`));
+// Unknown API routes -> consistent JSON 404 (instead of the static 404 page).
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+// Central error handler — logs the real error server-side, returns a generic
+// message to the client (no stack traces / internals leaked).
+app.use((err, req, res, next) => {
+    log('error', 'unhandled error', { path: req.originalUrl, err: err && err.message });
+    if (res.headersSent) return next(err);
+    res.status(err && err.status ? err.status : 500).json({ error: 'Internal server error' });
 });
+
+// Start server after connecting to database (guarded so tests can require this
+// module without opening a DB connection or binding the port).
+if (require.main === module) {
+    connectToDatabase().then(() => {
+        app.listen(PORT, () => console.log(`✓ Fraud-checker-bd operational framework running on port ${PORT}`));
+    });
+}
+
+module.exports = { app };

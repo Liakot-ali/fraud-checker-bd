@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fraud Event Details | Fraud-Checker-BD</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/tailwind.css">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="description" content="Verified details of a reported fraud incident on Fraud-Checker-BD.">
+    <meta property="og:title" content="Fraud Event Details | Fraud-Checker-BD">
+    <meta property="og:description" content="A verified fraud report from Bangladesh's community fraud database.">
+    <meta property="og:type" content="article">
     <script src="/shared.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
@@ -287,23 +292,31 @@
         function copyShareLink() {
             const link = document.getElementById('share-link');
             link.select();
-            document.execCommand('copy');
-            alert('Link copied to clipboard!');
+            try {
+                navigator.clipboard ? navigator.clipboard.writeText(link.value) : document.execCommand('copy');
+                FC.toast('Link copied to clipboard', 'success');
+            } catch (e) {
+                FC.toast('Could not copy the link', 'error');
+            }
         }
 
         function openImageModal(src) {
             // Create modal
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 cursor-pointer';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.setAttribute('aria-label', 'Evidence image preview');
             modal.innerHTML = `
                 <div class="relative max-w-4xl w-full">
-                    <img src="${src}" alt="Full image" class="w-full rounded-lg">
-                    <button class="absolute top-4 right-4 text-white text-4xl font-bold hover:text-slate-200">×</button>
+                    <img src="${src}" alt="Evidence full image" class="w-full rounded-lg">
+                    <button aria-label="Close image preview" class="absolute top-4 right-4 text-white text-4xl font-bold hover:text-slate-200">×</button>
                 </div>
             `;
-            modal.addEventListener('click', function() {
-                this.remove();
-            });
+            const close = () => { modal.remove(); document.removeEventListener('keydown', onKey); };
+            const onKey = (e) => { if (e.key === 'Escape') close(); };
+            modal.addEventListener('click', close);
+            document.addEventListener('keydown', onKey);
             document.body.appendChild(modal);
         }
 

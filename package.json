@@ -4,7 +4,15 @@
   "description": "Formal SRS prototype for a web-based fraud reporting and search platform",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/tailwind.css --minify"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -15,5 +23,13 @@
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^6.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.4",
+    "tailwindcss": "^3.4.19"
   }
 }

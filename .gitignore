@@ -1,4 +1,13 @@
+# Secrets & local env
 .env
+.env.local
+
+# Dependencies (package-lock.json IS committed for reproducible installs)
 node_modules/
-package-lock.json
+
+# OS / editor cruft
 .DS_Store
+
+# Logs
+*.log
+npm-debug.log*
