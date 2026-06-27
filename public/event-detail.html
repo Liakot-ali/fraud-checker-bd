@@ -57,6 +57,22 @@
                 </div>
             </div>
 
+            <!-- Trust signals -->
+            <div id="trust-bar" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white border border-slate-200 rounded-xl p-5 text-center shadow-sm">
+                    <p id="trust-count" class="text-3xl font-black text-red-600">0</p>
+                    <p class="text-xs text-slate-500 font-semibold mt-1">Reports of this number</p>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-5 text-center shadow-sm">
+                    <p id="trust-first" class="text-sm font-bold text-slate-800">-</p>
+                    <p class="text-xs text-slate-500 font-semibold mt-1">First reported</p>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-5 text-center shadow-sm">
+                    <p id="trust-last" class="text-sm font-bold text-slate-800">-</p>
+                    <p class="text-xs text-slate-500 font-semibold mt-1">Most recent report</p>
+                </div>
+            </div>
+
             <!-- Fraud Details Section -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
                 <h2 class="text-2xl font-bold text-slate-900 mb-6">📋 Fraud Details</h2>
@@ -201,6 +217,14 @@
                 document.getElementById('loss-amount').textContent = FC.money(event.loss_amount);
                 document.getElementById('scam-type').textContent = event.scam_type || 'Not provided';
                 document.getElementById('location').textContent = event.scam_location || event.address || 'Not provided';
+
+                // Trust signals (corroboration count + first/last reported)
+                if (data.trust) {
+                    document.getElementById('trust-bar').classList.remove('hidden');
+                    document.getElementById('trust-count').textContent = data.trust.report_count;
+                    document.getElementById('trust-first').textContent = FC.fmtDate(data.trust.first_seen);
+                    document.getElementById('trust-last').textContent = FC.fmtDate(data.trust.last_seen);
+                }
 
                 // Fraud details
                 document.getElementById('loss-item').textContent = event.loss_item || 'Not provided';

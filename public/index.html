@@ -44,12 +44,33 @@
             <h2 class="text-3xl font-bold text-slate-900 mb-4 text-center">Search Fraud Database</h2>
             <p class="text-slate-600 text-center mb-6">Search by imposter name, nickname, phone number, NID, scam type, location, and more</p>
             
-            <div class="flex gap-2 max-w-3xl mx-auto mb-6">
-                <input type="text" id="query" placeholder="Enter name, phone, NID, location, or scam type..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none shadow-sm">
+            <div class="flex gap-2 max-w-3xl mx-auto mb-4">
+                <input type="text" id="query" aria-label="Search the fraud database" placeholder="Enter name, phone, NID, location, or scam type..." class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none shadow-sm">
                 <button id="search-btn" onclick="performSearch()" class="bg-red-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-red-700 transition shadow-sm flex items-center gap-2">
                     <span id="search-btn-text">Search</span>
                     <div id="search-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                 </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="flex flex-wrap gap-3 max-w-3xl mx-auto mb-6 justify-center">
+                <select id="filter-category" aria-label="Filter by scam category" class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 focus:outline-none">
+                    <option value="">All categories</option>
+                    <option value="Ticket Fraud">Ticket Fraud</option>
+                    <option value="Hotel Booking">Hotel Booking</option>
+                    <option value="Tour/Travel">Tour/Travel</option>
+                    <option value="Reservation">Reservation</option>
+                    <option value="E-Commerce">E-Commerce</option>
+                    <option value="Mobile Banking">Mobile Banking</option>
+                    <option value="Job Offer">Job Offer</option>
+                    <option value="Loan/Investment">Loan/Investment</option>
+                    <option value="Romance">Romance</option>
+                    <option value="Other">Other</option>
+                </select>
+                <select id="filter-sort" aria-label="Sort results" class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 focus:outline-none">
+                    <option value="recent">Sort: Most recent</option>
+                    <option value="loss">Sort: Highest loss</option>
+                </select>
             </div>
 
             <!-- Quick Info -->
@@ -57,6 +78,9 @@
                 <p>💡 Search for: imposter name, nickname, phone, NID, GD number, scam type, description, location</p>
             </div>
         </div>
+
+        <!-- Phone-check verdict -->
+        <div id="search-verdict" class="hidden max-w-3xl mx-auto mb-6 p-4 rounded-xl text-sm font-semibold border text-center" role="status"></div>
 
         <!-- Results Area -->
         <div id="results-container" class="hidden">
@@ -150,6 +174,8 @@
     <script>
         let currentEventId = null;
         let currentQuery = '';
+        let currentCategory = '';
+        let currentSort = 'recent';
         let currentSkip = 0;
         const PAGE_SIZE = 30;
         const E = FC.escapeHtml;
@@ -168,14 +194,14 @@
                             </div>
                         </div>
                         <div class="flex-grow">
-                            <h3 class="text-lg font-bold text-slate-900">${FC.val(e.scam_type, 'Unknown Scam')}</h3>
-                            <p class="text-sm text-slate-600 mt-1">👤 <strong>${FC.val(e.imposter_name, 'Unknown Imposter')}</strong></p>
+                            <h3 class="text-lg font-bold text-slate-900">${e.scam_type ? FC.highlight(e.scam_type, currentQuery) : E('Unknown Scam')}</h3>
+                            <p class="text-sm text-slate-600 mt-1">👤 <strong>${e.imposter_name ? FC.highlight(e.imposter_name, currentQuery) : E('Unknown Imposter')}</strong></p>
                         </div>
                         <div class="text-right">
                             <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-bold border border-red-200">VERIFIED</span>
                         </div>
                     </div>
-                    <p class="text-sm text-slate-700 mb-4 line-clamp-2">${E(desc)}</p>
+                    <p class="text-sm text-slate-700 mb-4 line-clamp-2">${FC.highlight(desc, currentQuery)}</p>
                     <div class="grid grid-cols-3 gap-3 mb-4">
                         <div class="bg-red-50 p-3 rounded-lg border border-red-100">
                             <p class="text-xs text-red-600 font-semibold">Loss Amount</p>
@@ -191,7 +217,7 @@
                         </div>
                     </div>
                     <div class="text-xs text-slate-500 flex justify-between items-center">
-                        <span>📱 ${FC.val(e.imposter_phone, 'Phone not shown')}</span>
+                        <span>📱 ${e.imposter_phone ? FC.highlight(e.imposter_phone, currentQuery) : E('Phone not shown')}</span>
                         <span>Click for details →</span>
                     </div>
                 </div>`;
@@ -201,9 +227,25 @@
             const q = document.getElementById('query').value.trim();
             if (!q) { FC.toast('Please enter a search term', 'info'); return; }
             currentQuery = q;
+            currentCategory = document.getElementById('filter-category').value;
+            currentSort = document.getElementById('filter-sort').value;
             currentSkip = 0;
             document.getElementById('results').innerHTML = '';
+            document.getElementById('search-verdict').classList.add('hidden');
             await loadResults(false);
+        }
+
+        function updateVerdict(mode, total) {
+            const v = document.getElementById('search-verdict');
+            if (mode !== 'phone') { v.classList.add('hidden'); return; }
+            if (total > 0) {
+                v.className = 'max-w-3xl mx-auto mb-6 p-4 rounded-xl text-sm font-semibold border text-center bg-red-50 border-red-200 text-red-700';
+                v.textContent = `⚠️ This number appears in ${total} fraud report${total > 1 ? 's' : ''}. Review the details below before trusting it.`;
+            } else {
+                v.className = 'max-w-3xl mx-auto mb-6 p-4 rounded-xl text-sm font-semibold border text-center bg-green-50 border-green-200 text-green-700';
+                v.textContent = '✅ No fraud reports found for this number. Stay cautious — absence of a report is not a guarantee.';
+            }
+            v.classList.remove('hidden');
         }
 
         async function loadResults(append) {
@@ -215,7 +257,12 @@
             searchSpinner.classList.remove('hidden');
 
             try {
-                const res = await fetch(`/api/search?q=${encodeURIComponent(currentQuery)}&limit=${PAGE_SIZE}&skip=${currentSkip}`);
+                const params = new URLSearchParams({ q: currentQuery, limit: String(PAGE_SIZE), skip: String(currentSkip) });
+                if (currentCategory) params.set('category', currentCategory);
+                if (currentSort) params.set('sort', currentSort);
+                const res = await fetch('/api/search?' + params.toString());
+                const total = parseInt(res.headers.get('X-Total-Count') || '0', 10);
+                const mode = res.headers.get('X-Search-Mode') || 'text';
                 const events = await res.json();
 
                 const resultsContainer = document.getElementById('results-container');
@@ -225,6 +272,7 @@
                 const loadMoreWrap = document.getElementById('load-more-wrap');
 
                 document.getElementById('no-search-message').classList.add('hidden');
+                if (!append) updateVerdict(mode, total);
 
                 const list = Array.isArray(events) ? events : [];
                 if (!append && list.length === 0) {
@@ -237,8 +285,8 @@
                 noResultsMsg.classList.add('hidden');
                 resultsDiv.insertAdjacentHTML('beforeend', list.map(renderCard).join(''));
                 currentSkip += list.length;
-                resultsTitle.textContent = `Showing ${resultsDiv.children.length} Fraud Report(s)`;
-                loadMoreWrap.classList.toggle('hidden', list.length < PAGE_SIZE);
+                resultsTitle.textContent = total ? `${total} Fraud Report${total > 1 ? 's' : ''} found` : `Showing ${resultsDiv.children.length} Fraud Report(s)`;
+                loadMoreWrap.classList.toggle('hidden', currentSkip >= total);
             } catch (err) {
                 FC.toast('Search error: ' + err.message, 'error');
                 console.error(err);
@@ -314,6 +362,8 @@
         document.getElementById('event-modal').addEventListener('click', function (e) { if (e.target === this) closeEventModal(); });
         document.getElementById('query').addEventListener('keypress', function (e) { if (e.key === 'Enter') performSearch(); });
         document.getElementById('load-more-btn').addEventListener('click', () => loadResults(true));
+        document.getElementById('filter-category').addEventListener('change', () => { if (currentQuery) performSearch(); });
+        document.getElementById('filter-sort').addEventListener('change', () => { if (currentQuery) performSearch(); });
         FC.onEscape(closeEventModal);
     </script>
 </body>

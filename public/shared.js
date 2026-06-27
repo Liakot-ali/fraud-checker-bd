@@ -69,6 +69,19 @@
     return text.length > n ? text.substring(0, n) + '…' : text;
   }
 
+  // Escape text, then wrap case-insensitive matches of the query in <mark>.
+  function highlight(text, q) {
+    var safe = escapeHtml(text == null ? '' : text);
+    q = (q || '').trim();
+    if (!q) return safe;
+    var eq = escapeHtml(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    try {
+      return safe.replace(new RegExp('(' + eq + ')', 'gi'), '<mark class="bg-yellow-200 rounded px-0.5">$1</mark>');
+    } catch (e) {
+      return safe;
+    }
+  }
+
   // Non-blocking, screen-reader-announced toast (replaces alert() for info/errors).
   function toast(message, type) {
     var container = document.getElementById('fc-toasts');
@@ -111,6 +124,7 @@
     money: money,
     socialLink: socialLink,
     truncate: truncate,
+    highlight: highlight,
     toast: toast,
     onEscape: onEscape
   };

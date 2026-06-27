@@ -348,7 +348,9 @@ async function resolveProfile(event, timestamp) {
 
 // ===================== PUBLIC API =====================
 
-// GET /api/search?q=&limit=&skip=
+// GET /api/search?q=&category=&sort=&limit=&skip=
+// Returns an array of approved events; the total match count is in the
+// `X-Total-Count` header and the match strategy in `X-Search-Mode`.
 app.get('/api/search', async (req, res) => {
     try {
         const query = str(req.query.q).trim();
@@ -357,27 +359,76 @@ app.get('/api/search', async (req, res) => {
         const fraudEvents = db.collection('fraud_events');
         const projection = { scam_proofs: 0, imposter_picture: 0, reporter_phone: 0, reporter_email: 0 };
 
-        let matches;
-        try {
-            matches = await fraudEvents.find(
-                { status: STATUS.APPROVED, $text: { $search: query } },
-                { projection }
-            ).skip(skip).limit(limit).toArray();
-        } catch (textErr) {
-            // Fallback to a (regex-escaped) search if the text index is unavailable.
-            const rx = new RegExp(escapeRegex(query), 'i');
-            matches = await fraudEvents.find({
-                status: STATUS.APPROVED,
-                $or: [
-                    { imposter_name: rx }, { imposter_nickname: rx }, { imposter_phone: rx },
-                    { alt_phones: rx }, { imposter_nid: rx }, { gd_number: rx },
-                    { scam_type: rx }, { description: rx }, { scam_location: rx }
-                ]
-            }, { projection }).skip(skip).limit(limit).toArray();
+        const category = str(req.query.category).trim();
+        const sortMap = { recent: { approved_at: -1 }, loss: { loss_amount: -1 } };
+        const sort = sortMap[str(req.query.sort)] || { approved_at: -1 };
+
+        const filter = { status: STATUS.APPROVED };
+        if (category) filter.scam_type = category;
+
+        // Phone-first: when the query looks like a phone number, match normalized
+        // numbers (primary + alternates) rather than the text index.
+        const looksLikePhone = /^[\d+\-\s()]+$/.test(query) && query.replace(/\D/g, '').length >= 6;
+        let mode = 'text';
+        if (looksLikePhone) {
+            mode = 'phone';
+            const nq = normalize(query);
+            const phoneRows = await db.collection('event_phones')
+                .find({ normalized_phone: { $regex: escapeRegex(nq) } })
+                .project({ event_id: 1 }).limit(2000).toArray();
+            filter._id = { $in: phoneRows.map(p => p.event_id) };
+        } else {
+            filter.$text = { $search: query };
         }
+
+        let total, matches;
+        try {
+            total = await fraudEvents.countDocuments(filter);
+            matches = await fraudEvents.find(filter, { projection }).sort(sort).skip(skip).limit(limit).toArray();
+        } catch (textErr) {
+            // Text index unavailable -> regex fallback.
+            delete filter.$text;
+            const rx = new RegExp(escapeRegex(query), 'i');
+            filter.$or = [
+                { imposter_name: rx }, { imposter_nickname: rx }, { imposter_phone: rx },
+                { alt_phones: rx }, { imposter_nid: rx }, { gd_number: rx },
+                { scam_type: rx }, { description: rx }, { scam_location: rx }
+            ];
+            total = await fraudEvents.countDocuments(filter);
+            matches = await fraudEvents.find(filter, { projection }).sort(sort).skip(skip).limit(limit).toArray();
+        }
+
+        res.set('X-Total-Count', String(total));
+        res.set('X-Search-Mode', mode);
         res.json(matches.map(e => sanitizeEvent(e)));
     } catch (err) {
         res.status(500).json({ error: 'Search failed' });
+    }
+});
+
+// GET /api/check?phone=&nid= — quick public lookup of how many APPROVED reports
+// match a phone and/or NID (counts only, no personal data). Powers the submit
+// form's duplicate hint and can back a standalone "is this number reported?" check.
+app.get('/api/check', async (req, res) => {
+    try {
+        const fraudEvents = db.collection('fraud_events');
+        const phone = str(req.query.phone).trim();
+        const nid = str(req.query.nid).trim();
+        const out = { phone_reports: 0, nid_reports: 0 };
+        if (phone) {
+            const nq = normalize(phone);
+            if (nq) {
+                const ids = await db.collection('event_phones')
+                    .find({ normalized_phone: nq }).project({ event_id: 1 }).toArray();
+                out.phone_reports = await fraudEvents.countDocuments({ status: STATUS.APPROVED, _id: { $in: ids.map((i) => i.event_id) } });
+            }
+        }
+        if (nid) {
+            out.nid_reports = await fraudEvents.countDocuments({ status: STATUS.APPROVED, imposter_nid: nid });
+        }
+        res.json(out);
+    } catch (err) {
+        res.status(500).json({ error: 'Check failed' });
     }
 });
 
@@ -394,7 +445,18 @@ app.get('/api/events/:id/details', async (req, res) => {
         let profile = null;
         if (event.profile_id) profile = await db.collection('cheater_profiles').findOne({ _id: event.profile_id });
 
-        res.json({ event: sanitizeEvent(event, { includeProofs: true }), profile });
+        // Trust signals: how many approved reports share this imposter's phone,
+        // plus the first/last time it was reported.
+        const trust = { report_count: 1, first_seen: event.approved_at, last_seen: event.approved_at };
+        if (event.imposter_normalized_phone) {
+            const agg = await db.collection('fraud_events').aggregate([
+                { $match: { status: STATUS.APPROVED, imposter_normalized_phone: event.imposter_normalized_phone } },
+                { $group: { _id: null, count: { $sum: 1 }, first: { $min: '$approved_at' }, last: { $max: '$approved_at' } } }
+            ]).toArray();
+            if (agg[0]) { trust.report_count = agg[0].count; trust.first_seen = agg[0].first; trust.last_seen = agg[0].last; }
+        }
+
+        res.json({ event: sanitizeEvent(event, { includeProofs: true }), profile, trust });
     } catch (err) {
         res.status(404).json({ error: 'Event not found' });
     }
