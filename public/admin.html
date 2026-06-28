@@ -35,6 +35,9 @@
             </div>
         </div>
 
+        <!-- Stats overview -->
+        <div id="stats-bar" class="max-w-7xl mx-auto px-6 pt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+
         <!-- Navigation Tabs -->
         <div class="bg-slate-800 border-b border-slate-700 sticky top-20 z-30">
             <div class="max-w-7xl mx-auto px-6 flex gap-1 overflow-x-auto">
@@ -53,6 +56,12 @@
                 <button onclick="switchTab('reporters')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="reporters">
                     📋 Reporter List
                 </button>
+                <button onclick="switchTab('audit')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="audit">
+                    📜 Audit Log
+                </button>
+                <button onclick="switchTab('disputes')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="disputes">
+                    ⚖️ Disputes
+                </button>
                 <button onclick="switchTab('admins')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="admins">
                     🔑 Admin List
                 </button>
@@ -61,6 +70,10 @@
 
         <!-- Content Area -->
         <div class="max-w-7xl mx-auto p-6">
+            <div class="mb-4">
+                <input id="tab-search" type="text" placeholder="Filter the current list…" aria-label="Filter current list" class="w-full sm:w-96 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+            </div>
+
             <!-- Live Events Tab -->
             <div id="live-tab" class="tab-content">
                 <div class="mb-4">
@@ -75,6 +88,11 @@
                 <div class="mb-4">
                     <h2 class="text-xl font-bold text-white mb-2">Pending Fraud Events</h2>
                     <p class="text-sm text-slate-400">Events awaiting administrative review and approval</p>
+                </div>
+                <div id="pending-bulk" class="hidden mb-4 flex flex-wrap items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-3">
+                    <span id="pending-selected" class="text-sm text-slate-300">0 selected</span>
+                    <button onclick="bulkAction('approve')" class="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded text-sm font-semibold transition">Approve selected</button>
+                    <button onclick="bulkAction('reject')" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm font-semibold transition">Reject selected</button>
                 </div>
                 <div id="pending-events" class="grid gap-4"></div>
             </div>
@@ -106,15 +124,43 @@
                 <div id="reporters-list" class="grid gap-4"></div>
             </div>
 
+            <!-- Audit Log Tab -->
+            <div id="audit-tab" class="tab-content hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Moderation Audit Log</h2>
+                    <p class="text-sm text-slate-400">Every approve / reject / delete / edit action, most recent first</p>
+                </div>
+                <div id="audit-list" class="grid gap-3"></div>
+            </div>
+
+            <!-- Disputes Tab -->
+            <div id="disputes-tab" class="tab-content hidden">
+                <div class="mb-4">
+                    <h2 class="text-xl font-bold text-white mb-2">Disputes</h2>
+                    <p class="text-sm text-slate-400">Right-of-reply submissions contesting a published report</p>
+                </div>
+                <div id="disputes-list" class="grid gap-3"></div>
+            </div>
+
             <!-- Admin List Tab -->
             <div id="admins-tab" class="tab-content hidden">
                 <div class="mb-4">
                     <h2 class="text-xl font-bold text-white mb-2">Admin Management</h2>
-                    <p class="text-sm text-slate-400">System administrators and moderators (Coming Soon)</p>
+                    <p class="text-sm text-slate-400">System administrators (only a superuser can add or remove accounts)</p>
                 </div>
-                <div class="text-center py-12 bg-slate-800 border border-slate-700 rounded-lg">
-                    <p class="text-slate-400">Admin management features coming in next update</p>
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 mb-4">
+                    <h3 class="text-sm font-bold text-white mb-3">Add an admin</h3>
+                    <div class="grid sm:grid-cols-4 gap-2">
+                        <input id="new-admin-user" placeholder="Username" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                        <input id="new-admin-pass" type="password" placeholder="Password (min 8)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                        <select id="new-admin-role" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                            <option value="admin">admin</option>
+                            <option value="superuser">superuser</option>
+                        </select>
+                        <button onclick="createAdmin()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold transition">Create</button>
+                    </div>
                 </div>
+                <div id="admins-list" class="grid gap-3"></div>
             </div>
         </div>
     </div>
@@ -141,6 +187,8 @@
         let token = "";
         let currentEventId = null;
         let currentEventStatus = null;
+        let currentEventData = null;
+        let activeTab = 'live';
         const PAGE = 20;
         const listSkip = {};
 
@@ -149,7 +197,9 @@
             pending:   { url: '/api/admin/moderation-queue', container: 'pending-events', empty: 'No pending events',           render: renderEventCard, status: 'pending' },
             deleted:   { url: '/api/admin/events/rejected',  container: 'deleted-events', empty: 'No deleted events',           render: renderEventCard, status: 'deleted' },
             imposters: { url: '/api/admin/imposters',        container: 'imposters-list', empty: 'No fraudsters in database',   render: renderImposterCard },
-            reporters: { url: '/api/admin/reporters',        container: 'reporters-list', empty: 'No reporters yet',            render: renderReporterCard }
+            reporters: { url: '/api/admin/reporters',        container: 'reporters-list', empty: 'No reporters yet',            render: renderReporterCard },
+            audit:     { url: '/api/admin/audit',            container: 'audit-list',     empty: 'No audit entries yet',       render: renderAuditCard },
+            disputes:  { url: '/api/admin/disputes',         container: 'disputes-list',  empty: 'No disputes',                render: renderDisputeCard }
         };
 
         // Tracks which tabs have been loaded (so we lazy-load and only refresh
@@ -192,6 +242,7 @@
                 document.getElementById('login-block').classList.add('hidden');
                 document.getElementById('admin-block').classList.remove('hidden');
                 loadList('live', false); // lazy: load only the visible tab; others load when opened
+                loadStats();
             } else {
                 FC.toast((data && data.error) || 'Invalid credentials', 'error');
             }
@@ -208,9 +259,12 @@
         // after a moderation action without re-fetching everything).
         function reloadLoaded() {
             loaded.forEach(k => loadList(k, false));
+            loadStats();
         }
 
         function switchTab(tabName) {
+            activeTab = tabName;
+            document.getElementById('tab-search').value = '';
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('border-green-500', 'text-green-400');
@@ -227,17 +281,19 @@
                 activeBtn.setAttribute('aria-selected', 'true');
             }
             if (LISTS[tabName]) loadList(tabName, false);
+            else if (tabName === 'admins') loadAdmins();
         }
 
         // ---- generic paginated list loader ----
         async function loadList(kind, append) {
             const cfg = LISTS[kind];
             const container = document.getElementById(cfg.container);
-            if (!append) { listSkip[kind] = 0; container.innerHTML = ''; }
+            if (!append) { listSkip[kind] = 0; container.innerHTML = skeletonCards(3); }
             const items = await api(`${cfg.url}?limit=${PAGE}&skip=${listSkip[kind] || 0}`);
-            if (items === null) return;
+            if (items === null) { if (!append) container.innerHTML = ''; return; }
             loaded.add(kind);
             const list = Array.isArray(items) ? items : [];
+            if (!append) container.innerHTML = ''; // clear skeletons
             if (!append && list.length === 0) {
                 container.innerHTML = `<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">${cfg.empty}</div>`;
                 setMore(kind, false);
@@ -246,6 +302,8 @@
             container.insertAdjacentHTML('beforeend', list.map(it => cfg.render(it, cfg.status)).join(''));
             listSkip[kind] = (listSkip[kind] || 0) + list.length;
             setMore(kind, list.length === PAGE);
+            filterActiveList();
+            if (kind === 'pending') updateBulkBar();
         }
         function setMore(kind, show) {
             const container = document.getElementById(LISTS[kind].container);
@@ -283,6 +341,7 @@
                     : `<div class="text-xs text-slate-500">Awaiting action...</div>`;
             return `
                 <div onclick="viewEventDetails('${FC.escapeHtml(e._id)}', '${status}')" class="bg-gradient-to-br ${c.wrap} border rounded-lg p-5 cursor-pointer transition shadow-lg">
+                    ${status === 'pending' ? `<label class="flex items-center gap-2 mb-2 text-xs text-slate-400 w-max" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-check accent-green-500" data-id="${FC.escapeHtml(e._id)}" onclick="updateBulkBar()"> select</label>` : ''}
                     <div class="flex justify-between items-start mb-3">
                         <div>
                             <h3 class="text-lg font-bold ${c.title}">${FC.val(e.scam_type, 'Unknown Scam')}</h3>
@@ -334,6 +393,7 @@
             if (!data) return;
             if (!data.event) { FC.toast('Event not found', 'error'); return; }
             const event = data.event;
+            currentEventData = event;
             const tokenQ = 'token=' + encodeURIComponent(token);
             const picSrc = `/api/events/${encodeURIComponent(eventId)}/picture?${tokenQ}`;
             const proofs = Array.isArray(event.scam_proofs) ? event.scam_proofs : [];
@@ -403,14 +463,15 @@
                 </div>`;
 
             let actions = '<button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>';
+            const editBtn = `<button onclick="editEvent()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit</button>`;
             if (status === 'pending') {
-                actions += `
+                actions += editBtn + `
                     <button onclick="rejectEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Reject</button>
                     <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Approve</button>`;
             } else if (status === 'live') {
-                actions += `<button onclick="deleteEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Delete</button>`;
+                actions += editBtn + `<button onclick="deleteEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Delete</button>`;
             } else if (status === 'deleted') {
-                actions += `<button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Re-approve</button>`;
+                actions += editBtn + `<button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Re-approve</button>`;
             }
             document.getElementById('modal-actions').innerHTML = actions;
             document.getElementById('detail-modal').classList.remove('hidden');
@@ -439,8 +500,206 @@
         }
         function closeModal() {
             document.getElementById('detail-modal').classList.add('hidden');
-            currentEventId = null; currentEventStatus = null;
+            currentEventId = null; currentEventStatus = null; currentEventData = null;
         }
+
+        // ---- loading skeletons ----
+        function skeletonCards(n) {
+            let h = '';
+            for (let i = 0; i < n; i++) {
+                h += '<div class="bg-slate-800 border border-slate-700 rounded-lg p-5 animate-pulse"><div class="h-4 bg-slate-700 rounded w-1/3 mb-3"></div><div class="h-3 bg-slate-700 rounded w-2/3 mb-2"></div><div class="h-3 bg-slate-700 rounded w-1/2"></div></div>';
+            }
+            return h;
+        }
+
+        // ---- dashboard stats ----
+        async function loadStats() {
+            const s = await api('/api/admin/stats');
+            if (!s || s.error) return;
+            const cards = [
+                ['Pending', s.pending, 'text-amber-400'],
+                ['Live', s.approved, 'text-green-400'],
+                ['Rejected', s.rejected, 'text-red-400'],
+                ['Fraudsters', s.profiles, 'text-purple-400'],
+                ['Total loss', FC.money(s.total_loss), 'text-orange-400'],
+                ['New (7d)', s.reports_last_7d, 'text-blue-400']
+            ];
+            document.getElementById('stats-bar').innerHTML = cards.map(([label, val, cls]) => `
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 text-center">
+                    <p class="text-xl font-black ${cls}">${FC.escapeHtml(String(val))}</p>
+                    <p class="text-xs text-slate-400 mt-1">${label}</p>
+                </div>`).join('');
+        }
+
+        // ---- audit log ----
+        function renderAuditCard(a) {
+            const colors = { approve: 'text-green-400', reject: 'text-red-400', delete: 'text-red-400', edit: 'text-blue-400' };
+            const extra = a.reason ? `— ${FC.escapeHtml(a.reason)}`
+                : (Array.isArray(a.fields) && a.fields.length ? `— fields: ${FC.escapeHtml(a.fields.join(', '))}` : '');
+            return `
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex justify-between items-center gap-4 text-sm">
+                    <div class="min-w-0">
+                        <span class="font-bold uppercase ${colors[a.action] || 'text-slate-300'}">${FC.val(a.action, 'action')}</span>
+                        <span class="text-slate-400">by ${FC.val(a.admin, 'system')}</span>
+                        <span class="text-slate-500">${extra}</span>
+                    </div>
+                    <div class="text-xs text-slate-500 whitespace-nowrap">${FC.fmtDateTime(a.at)}</div>
+                </div>`;
+        }
+
+        // ---- disputes ----
+        function renderDisputeCard(d) {
+            const badge = { open: 'bg-amber-500/20 text-amber-400', resolved: 'bg-green-500/20 text-green-400', dismissed: 'bg-slate-600 text-slate-300' }[d.status] || 'bg-slate-600 text-slate-300';
+            return `
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                    <div class="flex justify-between items-start gap-3 mb-2">
+                        <div class="min-w-0">
+                            <span class="text-xs px-2 py-0.5 rounded-full ${badge}">${FC.val(d.status, 'open')}</span>
+                            <span class="text-sm text-slate-300 ml-2">Re: <a href="/event-detail.html?id=${encodeURIComponent(d.event_id)}" target="_blank" class="text-blue-400 hover:underline">${FC.val(d.event_imposter, 'report')}</a> ${d.event_scam ? '(' + FC.escapeHtml(d.event_scam) + ')' : ''}</span>
+                        </div>
+                        <span class="text-xs text-slate-500 whitespace-nowrap">${FC.fmtDateTime(d.created_at)}</span>
+                    </div>
+                    <p class="text-sm text-slate-200 bg-slate-900/50 p-3 rounded border border-slate-700 whitespace-pre-line">${FC.escapeHtml(d.reason || '')}</p>
+                    ${d.contact ? `<p class="text-xs text-slate-400 mt-2">Contact: ${FC.escapeHtml(d.contact)}</p>` : ''}
+                    ${d.status === 'open'
+                        ? `<div class="flex gap-2 mt-3">
+                            <button onclick="resolveDispute('${FC.escapeHtml(d.id)}','resolved')" class="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded text-sm font-semibold transition">Mark resolved</button>
+                            <button onclick="resolveDispute('${FC.escapeHtml(d.id)}','dismissed')" class="bg-slate-600 hover:bg-slate-500 px-3 py-1.5 rounded text-sm font-semibold transition">Dismiss</button>
+                        </div>`
+                        : (d.note ? `<p class="text-xs text-slate-500 mt-2">Note: ${FC.escapeHtml(d.note)}</p>` : '')}
+                </div>`;
+        }
+        async function resolveDispute(id, status) {
+            const note = prompt('Optional note:') || '';
+            const data = await api('/api/admin/disputes/' + encodeURIComponent(id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, note }) });
+            if (!data) return;
+            if (data.error) { FC.toast(data.error, 'error'); return; }
+            FC.toast(data.message || 'Updated', 'success');
+            loadList('disputes', false);
+        }
+
+        // ---- admin user management ----
+        async function loadAdmins() {
+            const container = document.getElementById('admins-list');
+            container.innerHTML = skeletonCards(2);
+            const rows = await api('/api/admin/admins');
+            if (rows === null) return;
+            if (!Array.isArray(rows) || rows.length === 0) { container.innerHTML = '<div class="text-slate-400 text-sm">No admins.</div>'; return; }
+            container.innerHTML = rows.map(a => `
+                <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex justify-between items-center">
+                    <div>
+                        <span class="font-bold text-white">${FC.val(a.username, '')}</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full ml-2 ${a.role === 'superuser' ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-700 text-slate-300'}">${FC.val(a.role, 'admin')}</span>
+                        <p class="text-xs text-slate-500 mt-1">Created ${FC.fmtDate(a.created_at)}</p>
+                    </div>
+                    <button onclick="deleteAdmin('${FC.escapeHtml(a.id)}', '${FC.escapeHtml(a.username)}')" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm font-semibold transition">Remove</button>
+                </div>`).join('');
+            filterActiveList();
+        }
+        async function createAdmin() {
+            const username = document.getElementById('new-admin-user').value.trim();
+            const password = document.getElementById('new-admin-pass').value;
+            const role = document.getElementById('new-admin-role').value;
+            if (!username || !password) { FC.toast('Username and password are required', 'error'); return; }
+            const data = await api('/api/admin/admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, role }) });
+            if (!data) return;
+            if (data.error) { FC.toast(data.error, 'error'); return; }
+            FC.toast(data.message || 'Admin created', 'success');
+            document.getElementById('new-admin-user').value = '';
+            document.getElementById('new-admin-pass').value = '';
+            loadAdmins();
+        }
+        async function deleteAdmin(id, username) {
+            if (!confirm('Remove admin "' + username + '"?')) return;
+            const data = await api('/api/admin/admins/' + encodeURIComponent(id), { method: 'DELETE' });
+            if (!data) return;
+            if (data.error) { FC.toast(data.error, 'error'); return; }
+            FC.toast(data.message || 'Admin removed', 'success');
+            loadAdmins();
+        }
+
+        // ---- per-tab client-side filter ----
+        function filterActiveList() {
+            const input = document.getElementById('tab-search');
+            const q = (input ? input.value : '').trim().toLowerCase();
+            const cfg = LISTS[activeTab];
+            const containerId = cfg ? cfg.container : (activeTab === 'admins' ? 'admins-list' : null);
+            if (!containerId) return;
+            const container = document.getElementById(containerId);
+            Array.from(container.children).forEach(el => {
+                el.classList.toggle('hidden', !!q && !el.textContent.toLowerCase().includes(q));
+            });
+        }
+
+        // ---- bulk approve / reject (pending) ----
+        function updateBulkBar() {
+            const checks = document.querySelectorAll('#pending-events .bulk-check:checked');
+            document.getElementById('pending-selected').textContent = checks.length + ' selected';
+            document.getElementById('pending-bulk').classList.toggle('hidden', checks.length === 0);
+        }
+        async function bulkAction(action) {
+            const ids = Array.from(document.querySelectorAll('#pending-events .bulk-check:checked')).map(c => c.dataset.id);
+            if (ids.length === 0) return;
+            let reason = '';
+            if (action === 'reject') { reason = prompt('Rejection reason for ' + ids.length + ' event(s):'); if (!reason) return; }
+            if (!confirm(`${action === 'approve' ? 'Approve' : 'Reject'} ${ids.length} event(s)?`)) return;
+            let okCount = 0;
+            for (const id of ids) {
+                const opts = action === 'approve'
+                    ? { method: 'PATCH' }
+                    : { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rejection_reason: reason }) };
+                const d = await api(`/api/admin/events/${encodeURIComponent(id)}/${action}`, opts);
+                if (d && !d.error) okCount++;
+            }
+            FC.toast(`${okCount}/${ids.length} ${action === 'approve' ? 'approved' : 'rejected'}`, 'success');
+            document.getElementById('pending-bulk').classList.add('hidden');
+            reloadLoaded();
+        }
+
+        // ---- inline event edit ----
+        function editField(id, label, val) {
+            return `<div><label class="block text-xs text-slate-400 mb-1">${label}</label><input id="edit-${id}" value="${FC.escapeAttr(val == null ? '' : val)}" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-blue-500"></div>`;
+        }
+        function editEvent() {
+            const e = currentEventData;
+            if (!e) return;
+            document.getElementById('modal-content').innerHTML = `
+                <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">✏️ Edit event</h3>
+                <div class="grid sm:grid-cols-2 gap-3">
+                    ${editField('imposter_name', 'Imposter name', e.imposter_name)}
+                    ${editField('imposter_phone', 'Phone', e.imposter_phone)}
+                    ${editField('imposter_nickname', 'Nickname', e.imposter_nickname)}
+                    ${editField('imposter_nid', 'NID', e.imposter_nid)}
+                    ${editField('scam_type', 'Scam type', e.scam_type)}
+                    ${editField('loss_item', 'Loss item', e.loss_item)}
+                    ${editField('loss_amount', 'Loss amount', e.loss_amount)}
+                    ${editField('scam_location', 'Location', e.scam_location)}
+                    ${editField('gd_number', 'GD number', e.gd_number)}
+                    ${editField('imposter_address', 'Address', e.imposter_address)}
+                </div>
+                <div class="mt-3">${editField('social_media_account', 'Social media', e.social_media_account)}</div>
+                <div class="mt-3">
+                    <label class="block text-xs text-slate-400 mb-1">Description (30–500 chars)</label>
+                    <textarea id="edit-description" rows="4" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-blue-500">${FC.escapeHtml(e.description || '')}</textarea>
+                </div>`;
+            document.getElementById('modal-actions').innerHTML = `
+                <button onclick="viewEventDetails('${FC.escapeHtml(currentEventId)}', '${currentEventStatus}')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Cancel</button>
+                <button onclick="saveEdit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Save changes</button>`;
+        }
+        async function saveEdit() {
+            const fields = ['imposter_name', 'imposter_phone', 'imposter_nickname', 'imposter_nid', 'scam_type', 'loss_item', 'loss_amount', 'scam_location', 'gd_number', 'imposter_address', 'social_media_account'];
+            const body = {};
+            fields.forEach(f => { const el = document.getElementById('edit-' + f); if (el) body[f] = el.value; });
+            const desc = document.getElementById('edit-description'); if (desc) body.description = desc.value;
+            const data = await api('/api/admin/events/' + encodeURIComponent(currentEventId), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!data) return;
+            if (data.error) { FC.toast(data.error, 'error'); return; }
+            FC.toast(data.message || 'Saved', 'success');
+            closeModal();
+            reloadLoaded();
+        }
+
+        document.getElementById('tab-search').addEventListener('input', filterActiveList);
         document.getElementById('detail-modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
         FC.onEscape(closeModal);
     </script>

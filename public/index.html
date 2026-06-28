@@ -6,6 +6,8 @@
     <title>Fraud-Checker-BD | Protect Yourself From Scams</title>
     <link rel="stylesheet" href="/tailwind.css">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#dc2626">
     <meta name="description" content="Search Bangladesh's community-driven fraud database. Check names, phone numbers, and NIDs against verified scam reports before you trust someone.">
     <meta property="og:title" content="Fraud-Checker-BD — Protect Yourself From Scams">
     <meta property="og:description" content="A community-driven fraud reporting and search platform for Bangladesh.">
@@ -35,6 +37,11 @@
                 <a href="/submit.html" class="inline-block bg-white text-red-600 px-8 py-3 rounded-xl font-bold hover:bg-red-50 transition shadow-lg">Report an Incident Now</a>
             </div>
         </div>
+    </section>
+
+    <!-- Public transparency stats -->
+    <section class="bg-white border-b border-slate-200 py-8 px-4">
+        <div id="public-stats" class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 text-center"></div>
     </section>
 
     <!-- Main Content -->
@@ -365,6 +372,26 @@
         document.getElementById('filter-category').addEventListener('change', () => { if (currentQuery) performSearch(); });
         document.getElementById('filter-sort').addEventListener('change', () => { if (currentQuery) performSearch(); });
         FC.onEscape(closeEventModal);
+
+        // Public transparency numbers
+        async function loadPublicStats() {
+            try {
+                const s = await (await fetch('/api/stats/public')).json();
+                if (!s || s.error) return;
+                const cards = [
+                    [s.total_reports, 'Verified reports'],
+                    [FC.money(s.total_loss), 'Reported losses'],
+                    [s.fraudsters, 'Fraudster profiles'],
+                    [s.reports_last_30d, 'New in last 30 days']
+                ];
+                document.getElementById('public-stats').innerHTML = cards.map(([v, label]) => `
+                    <div>
+                        <p class="text-3xl font-black text-red-600">${FC.escapeHtml(String(v))}</p>
+                        <p class="text-sm text-slate-500 mt-1">${label}</p>
+                    </div>`).join('');
+            } catch (e) { /* non-fatal */ }
+        }
+        loadPublicStats();
     </script>
 </body>
 </html>

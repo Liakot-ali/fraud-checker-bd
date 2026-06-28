@@ -1,0 +1,13 @@
+{
+  "name": "Fraud-Checker-BD",
+  "short_name": "FraudCheck",
+  "description": "Community-driven fraud reporting and search platform for Bangladesh.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#dc2626",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

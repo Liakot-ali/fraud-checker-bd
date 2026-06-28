@@ -6,6 +6,8 @@
     <title>Report Fraud Allegation | Fraud-checker-bd</title>
     <link rel="stylesheet" href="/tailwind.css">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#dc2626">
     <meta name="description" content="Report a fraud incident to Bangladesh's community fraud database. Submit imposter details, scam details, and evidence for review.">
     <script src="/shared.js"></script>
 </head>
@@ -26,6 +28,10 @@
             </div>
 
             <form id="submissionForm" onsubmit="submitForm(event)" class="p-8 space-y-8">
+                <!-- Bot traps (hidden from humans) -->
+                <input type="text" id="hp_website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="hidden">
+                <input type="hidden" id="form_loaded_at">
+
                 <!-- SECTION 1: IMPOSTER PERSONAL DETAILS -->
                 <div class="border-2 border-blue-200 rounded-lg p-6 bg-blue-50">
                     <h3 class="text-xl font-bold text-blue-900 mb-6 flex items-center gap-2">
@@ -507,6 +513,9 @@
                 formData.append('scam_proofs', fileObj.file);
             }
 
+            formData.append('website', document.getElementById('hp_website').value);
+            formData.append('form_loaded_at', document.getElementById('form_loaded_at').value);
+
             try {
                 const res = await fetch('/api/events', {
                     method: 'POST',
@@ -580,6 +589,9 @@
         }
         DRAFT_FIELDS.forEach((id) => { const el = document.getElementById(id); if (el) el.addEventListener('input', saveDraft); });
         restoreDraft();
+
+        // Record when the form became ready (used by the server's min-fill-time bot check).
+        document.getElementById('form_loaded_at').value = Date.now();
     </script>
 </body>
 </html>

@@ -11,7 +11,7 @@ require('dotenv').config();
 const {
     STATUS, VISIBILITY, ROLES,
     ALLOWED_IMAGE, ALLOWED_PROOF, MAX_PROOFS,
-    normalize, str, escapeRegex, paging, sanitizeEvent, validateSubmission
+    normalize, str, escapeRegex, validPhone, paging, sanitizeEvent, validateSubmission
 } = require('./lib/util');
 
 // Minimal structured (JSON-line) logger — no sensitive payloads, no stack traces
@@ -182,7 +182,7 @@ async function connectToDatabase() {
 
 async function ensureCollections() {
     const names = (await db.listCollections().toArray()).map(c => c.name);
-    for (const c of ['cheater_profiles', 'identifiers', 'fraud_events', 'event_phones', 'audit_logs', 'admin_users']) {
+    for (const c of ['cheater_profiles', 'identifiers', 'fraud_events', 'event_phones', 'audit_logs', 'admin_users', 'disputes']) {
         if (!names.includes(c)) { await db.createCollection(c); console.log('✓ Created collection:', c); }
     }
 }
@@ -205,6 +205,8 @@ async function ensureIndexes() {
     await db.collection('event_phones').createIndex({ event_id: 1 });
     await db.collection('event_phones').createIndex({ normalized_phone: 1 });
     await db.collection('cheater_profiles').createIndex({ normalized_name: 1 });
+    await db.collection('disputes').createIndex({ created_at: -1 });
+    await db.collection('disputes').createIndex({ event_id: 1 });
     console.log('✓ Indexes ensured');
 }
 
@@ -215,18 +217,24 @@ async function seedAdmin() {
         await adminUsers.insertOne({
             username: 'admin',
             password_hash: await bcrypt.hash('admin123', 10),
-            role: 'superuser',
+            role: ROLES.SUPERUSER,
             created_at: new Date().toISOString()
         });
         console.log('✓ Seeded admin user (admin/admin123 — change this!)');
-    } else if (!/^\$2[aby]\$/.test(existing.password_hash || '')) {
-        // Migrate a legacy plaintext password to a bcrypt hash in place.
-        await adminUsers.updateOne(
-            { _id: existing._id },
-            { $set: { password_hash: await bcrypt.hash(existing.password_hash || 'admin123', 10) } }
-        );
+        return;
+    }
+    const set = {};
+    // Migrate a legacy plaintext password to a bcrypt hash in place.
+    if (!/^\$2[aby]\$/.test(existing.password_hash || '')) {
+        set.password_hash = await bcrypt.hash(existing.password_hash || 'admin123', 10);
         console.log('✓ Migrated legacy admin password to bcrypt hash');
     }
+    // Backfill the role so the default admin can manage other admins.
+    if (!existing.role) {
+        set.role = ROLES.SUPERUSER;
+        console.log('✓ Backfilled default admin role -> superuser');
+    }
+    if (Object.keys(set).length) await adminUsers.updateOne({ _id: existing._id }, { $set: set });
 }
 
 async function migrateLegacyEvents() {
@@ -346,6 +354,16 @@ async function resolveProfile(event, timestamp) {
     return profileId;
 }
 
+// ----- public rate limiters (anti-abuse) -----
+const submitLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+    message: { error: 'Too many submissions from this device. Please try again later.' }
+});
+const disputeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+    message: { error: 'Too many disputes from this device. Please try again later.' }
+});
+
 // ===================== PUBLIC API =====================
 
 // GET /api/search?q=&category=&sort=&limit=&skip=
@@ -429,6 +447,98 @@ app.get('/api/check', async (req, res) => {
         res.json(out);
     } catch (err) {
         res.status(500).json({ error: 'Check failed' });
+    }
+});
+
+// GET /api/stats/public — non-sensitive numbers for the public transparency panel.
+app.get('/api/stats/public', async (req, res) => {
+    try {
+        const fe = db.collection('fraud_events');
+        const since = new Date(Date.now() - 30 * 86400000).toISOString();
+        const [total, lossAgg, fraudsters, recent, topCats] = await Promise.all([
+            fe.countDocuments({ status: STATUS.APPROVED }),
+            fe.aggregate([{ $match: { status: STATUS.APPROVED } }, { $group: { _id: null, total: { $sum: '$loss_amount' } } }]).toArray(),
+            db.collection('cheater_profiles').countDocuments(),
+            fe.countDocuments({ status: STATUS.APPROVED, approved_at: { $gte: since } }),
+            fe.aggregate([
+                { $match: { status: STATUS.APPROVED } },
+                { $group: { _id: '$scam_type', count: { $sum: 1 } } },
+                { $sort: { count: -1 } }, { $limit: 5 }
+            ]).toArray()
+        ]);
+        res.json({
+            total_reports: total,
+            total_loss: (lossAgg[0] && lossAgg[0].total) || 0,
+            fraudsters,
+            reports_last_30d: recent,
+            top_categories: topCats.map((c) => ({ category: c._id || 'Unknown', count: c.count }))
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load stats' });
+    }
+});
+
+// POST /api/events/:id/dispute — right-of-reply: anyone can contest a report.
+app.post('/api/events/:id/dispute', disputeLimiter, async (req, res) => {
+    try {
+        const eventId = new ObjectId(req.params.id);
+        const event = await db.collection('fraud_events').findOne({ _id: eventId }, { projection: { _id: 1 } });
+        if (!event) return res.status(404).json({ error: 'Report not found.' });
+        const reason = str(req.body && req.body.reason).trim();
+        const contact = str(req.body && req.body.contact).trim();
+        if (reason.length < 20 || reason.length > 1000) {
+            return res.status(400).json({ error: 'Please describe the dispute in 20–1000 characters.' });
+        }
+        await db.collection('disputes').insertOne({ event_id: eventId, reason, contact, status: 'open', created_at: new Date().toISOString() });
+        res.json({ message: '✓ Your dispute has been submitted for review.' });
+    } catch (err) {
+        res.status(500).json({ error: 'Could not submit your dispute.' });
+    }
+});
+
+// GET /sitemap.xml — home, submit, and every approved report (SEO).
+app.get('/sitemap.xml', async (req, res) => {
+    try {
+        const base = `${req.protocol}://${req.get('host')}`;
+        const events = await db.collection('fraud_events')
+            .find({ status: STATUS.APPROVED }, { projection: { _id: 1, approved_at: 1 } }).limit(5000).toArray();
+        const urls = [
+            `<url><loc>${base}/</loc></url>`,
+            `<url><loc>${base}/submit.html</loc></url>`,
+            ...events.map((e) => `<url><loc>${base}/report/${e._id}</loc><lastmod>${(e.approved_at || '').slice(0, 10)}</lastmod></url>`)
+        ];
+        res.set('Content-Type', 'application/xml');
+        res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`);
+    } catch (err) {
+        res.status(500).end();
+    }
+});
+
+// GET /report/:id — server-rendered share page with real OG/meta for crawlers
+// and social previews; humans are redirected to the interactive detail page.
+app.get('/report/:id', async (req, res) => {
+    try {
+        const event = await db.collection('fraud_events').findOne(
+            { _id: new ObjectId(req.params.id), status: STATUS.APPROVED },
+            { projection: { imposter_name: 1, scam_type: 1, description: 1 } }
+        );
+        if (!event) return res.redirect('/');
+        const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const title = `${esc(event.imposter_name || 'Fraud report')} — ${esc(event.scam_type || 'Scam')} | Fraud-Checker-BD`;
+        const desc = esc((event.description || 'A verified fraud report on Fraud-Checker-BD.').slice(0, 160));
+        const target = `/event-detail.html?id=${event._id}`;
+        const url = `${req.protocol}://${req.get('host')}${target}`;
+        res.set('Content-Type', 'text/html');
+        res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>${title}</title>
+<meta name="description" content="${desc}">
+<meta property="og:title" content="${title}"><meta property="og:description" content="${desc}">
+<meta property="og:type" content="article"><meta property="og:url" content="${esc(url)}">
+<link rel="canonical" href="${esc(url)}">
+<meta http-equiv="refresh" content="0; url=${target}"></head>
+<body><p>Redirecting to the <a href="${target}">fraud report</a>…</p></body></html>`);
+    } catch (err) {
+        res.redirect('/');
     }
 });
 
@@ -517,8 +627,15 @@ app.get('/api/profiles/:id', async (req, res) => {
 });
 
 // POST /api/events — public submission
-app.post('/api/events', async (req, res) => {
+app.post('/api/events', submitLimiter, async (req, res) => {
     try {
+        // Bot traps: a honeypot field humans never see, and a minimum fill time.
+        if (str(req.body && req.body.website)) return res.status(400).json({ error: 'Spam detected.' });
+        const loadedAt = parseInt(str(req.body && req.body.form_loaded_at), 10);
+        if (loadedAt && Date.now() - loadedAt < 3000) {
+            return res.status(400).json({ error: 'That was too fast — please take a moment and resubmit.' });
+        }
+
         const { error, value } = validateSubmission(req.body);
         if (error) return res.status(400).json({ error });
 
@@ -804,6 +921,175 @@ app.get('/api/admin/reporters', requireAdmin, async (req, res) => {
         })));
     } catch (err) {
         res.status(500).json({ error: 'Failed to load reporters' });
+    }
+});
+
+// Restrict an action to superuser admins (used for managing admin accounts).
+function requireSuperuser(req, res, next) {
+    if (!req.admin || req.admin.role !== ROLES.SUPERUSER) return res.status(403).json({ error: 'Superuser role required' });
+    next();
+}
+
+// GET /api/admin/stats — moderation overview for the dashboard.
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+    try {
+        const fe = db.collection('fraud_events');
+        const since = new Date(Date.now() - 7 * 86400000).toISOString();
+        const [pending, approved, rejected, profiles, lossAgg, recent, topCats] = await Promise.all([
+            fe.countDocuments({ status: STATUS.PENDING }),
+            fe.countDocuments({ status: STATUS.APPROVED }),
+            fe.countDocuments({ status: STATUS.REJECTED }),
+            db.collection('cheater_profiles').countDocuments(),
+            fe.aggregate([{ $match: { status: STATUS.APPROVED } }, { $group: { _id: null, total: { $sum: '$loss_amount' } } }]).toArray(),
+            fe.countDocuments({ submitted_at: { $gte: since } }),
+            fe.aggregate([
+                { $match: { status: STATUS.APPROVED } },
+                { $group: { _id: '$scam_type', count: { $sum: 1 } } },
+                { $sort: { count: -1 } }, { $limit: 5 }
+            ]).toArray()
+        ]);
+        res.json({
+            pending, approved, rejected, profiles,
+            total_loss: (lossAgg[0] && lossAgg[0].total) || 0,
+            reports_last_7d: recent,
+            top_categories: topCats.map((c) => ({ category: c._id || 'Unknown', count: c.count }))
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load stats' });
+    }
+});
+
+// GET /api/admin/audit — paginated moderation audit log (most recent first).
+app.get('/api/admin/audit', requireAdmin, async (req, res) => {
+    try {
+        const { limit, skip } = paging(req, 30, 100);
+        const rows = await db.collection('audit_logs').find({}).sort({ at: -1 }).skip(skip).limit(limit).toArray();
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load audit log' });
+    }
+});
+
+// PATCH /api/admin/events/:id — edit an event's scalar fields (the "Edit" action).
+app.patch('/api/admin/events/:id', requireAdmin, async (req, res) => {
+    try {
+        const eventId = new ObjectId(req.params.id);
+        const fe = db.collection('fraud_events');
+        const event = await fe.findOne({ _id: eventId });
+        if (!event) return res.status(404).json({ error: 'Event not found' });
+
+        const b = req.body || {};
+        const set = {};
+        const textFields = ['imposter_name', 'imposter_nickname', 'imposter_nid', 'imposter_address', 'social_media_account', 'scam_type', 'loss_item', 'scam_location', 'gd_number'];
+        for (const f of textFields) { if (typeof b[f] === 'string') set[f] = b[f].trim(); }
+        if (typeof b.description === 'string') {
+            if (b.description.length < 30 || b.description.length > 500) {
+                return res.status(400).json({ error: 'Description must be between 30 and 500 characters.' });
+            }
+            set.description = b.description;
+        }
+        if (typeof b.imposter_phone === 'string') {
+            if (!validPhone(b.imposter_phone)) return res.status(400).json({ error: 'Invalid phone number format.' });
+            set.imposter_phone = b.imposter_phone.trim();
+            set.imposter_normalized_phone = normalize(set.imposter_phone);
+        }
+        if (b.loss_amount !== undefined && b.loss_amount !== '') {
+            const n = parseFloat(b.loss_amount);
+            set.loss_amount = isFinite(n) && n >= 0 ? n : 0;
+        }
+        if (Object.keys(set).length === 0) return res.status(400).json({ error: 'No editable fields provided.' });
+
+        await fe.updateOne({ _id: eventId }, { $set: set });
+        if (set.imposter_phone) {
+            await db.collection('event_phones').updateOne(
+                { event_id: eventId, phone_number: event.imposter_phone },
+                { $set: { phone_number: set.imposter_phone, normalized_phone: set.imposter_normalized_phone } }
+            );
+        }
+        await audit('edit', eventId, req, { fields: Object.keys(set) });
+        res.json({ message: '✓ Event updated', fields: Object.keys(set) });
+    } catch (err) {
+        res.status(500).json({ error: 'Edit failed' });
+    }
+});
+
+// ---- Admin user management (superuser only) ----
+app.get('/api/admin/admins', requireAdmin, async (req, res) => {
+    try {
+        const rows = await db.collection('admin_users').find({}, { projection: { password_hash: 0 } }).toArray();
+        res.json(rows.map((a) => ({ id: a._id, username: a.username, role: a.role || ROLES.ADMIN, created_at: a.created_at })));
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load admins' });
+    }
+});
+
+app.post('/api/admin/admins', requireAdmin, requireSuperuser, async (req, res) => {
+    try {
+        const username = str(req.body && req.body.username).trim();
+        const password = str(req.body && req.body.password);
+        const role = str(req.body && req.body.role) === ROLES.SUPERUSER ? ROLES.SUPERUSER : ROLES.ADMIN;
+        if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
+        if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+        if (await db.collection('admin_users').findOne({ username })) {
+            return res.status(409).json({ error: 'That username already exists.' });
+        }
+        const result = await db.collection('admin_users').insertOne({
+            username, password_hash: await bcrypt.hash(password, 10), role, created_at: new Date().toISOString()
+        });
+        res.json({ message: '✓ Admin created', id: result.insertedId });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to create admin' });
+    }
+});
+
+app.delete('/api/admin/admins/:id', requireAdmin, requireSuperuser, async (req, res) => {
+    try {
+        if (req.admin && req.admin.sub === req.params.id) return res.status(400).json({ error: 'You cannot delete your own account.' });
+        if ((await db.collection('admin_users').countDocuments()) <= 1) {
+            return res.status(400).json({ error: 'Cannot delete the last admin.' });
+        }
+        const result = await db.collection('admin_users').deleteOne({ _id: new ObjectId(req.params.id) });
+        if (result.deletedCount === 0) return res.status(404).json({ error: 'Admin not found.' });
+        res.json({ message: '✓ Admin deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to delete admin' });
+    }
+});
+
+// GET /api/admin/disputes — disputes with a short summary of the linked event.
+app.get('/api/admin/disputes', requireAdmin, async (req, res) => {
+    try {
+        const { limit, skip } = paging(req, 30, 100);
+        const rows = await db.collection('disputes').aggregate([
+            { $sort: { created_at: -1 } }, { $skip: skip }, { $limit: limit },
+            { $lookup: { from: 'fraud_events', localField: 'event_id', foreignField: '_id', as: 'ev' } },
+            { $addFields: { event: { $arrayElemAt: ['$ev', 0] } } }
+        ]).toArray();
+        res.json(rows.map((d) => ({
+            id: d._id, event_id: d.event_id, reason: d.reason, contact: d.contact,
+            status: d.status, created_at: d.created_at, note: d.note,
+            event_imposter: d.event && d.event.imposter_name,
+            event_scam: d.event && d.event.scam_type,
+            event_status: d.event && d.event.status
+        })));
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load disputes' });
+    }
+});
+
+// PATCH /api/admin/disputes/:id — resolve / dismiss / reopen a dispute.
+app.patch('/api/admin/disputes/:id', requireAdmin, async (req, res) => {
+    try {
+        const status = str(req.body && req.body.status);
+        if (!['open', 'resolved', 'dismissed'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+        const r = await db.collection('disputes').updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { status, note: str(req.body && req.body.note), resolved_at: new Date().toISOString(), resolved_by: req.admin.username } }
+        );
+        if (!r.matchedCount) return res.status(404).json({ error: 'Dispute not found.' });
+        res.json({ message: '✓ Dispute updated' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to update dispute' });
     }
 });
 
