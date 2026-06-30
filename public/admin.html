@@ -9,16 +9,20 @@
     <meta name="description" content="Fraud-Checker-BD administrative moderation console.">
     <meta name="robots" content="noindex">
     <script src="/shared.js"></script>
+    <script src="/i18n.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans">
     <!-- Login Block -->
     <div id="login-block" class="max-w-md mx-auto mt-24 p-8 bg-slate-800 rounded-2xl border border-slate-700 shadow-xl">
-        <h2 class="text-2xl font-bold text-white mb-2">Fraud-Checker-BD Admin</h2>
-        <p class="text-sm text-slate-400 mb-6">Secure Moderator Access Portal</p>
+        <h2 class="text-2xl font-bold text-white mb-2" data-i18n="admin.title">Fraud-Checker-BD Admin</h2>
+        <p class="text-sm text-slate-400 mb-6" data-i18n="admin.portal">Secure Moderator Access Portal</p>
         <div class="space-y-3">
-            <input type="text" id="user" placeholder="Admin Username" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
-            <input type="password" id="pass" placeholder="Password" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
-            <button onclick="login()" class="w-full bg-red-600 py-2 rounded-lg font-semibold text-sm hover:bg-red-700 transition">Login</button>
+            <input type="text" id="user" data-i18n-ph="admin.user_ph" placeholder="Admin Username" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+            <input type="password" id="pass" data-i18n-ph="admin.pass_ph" placeholder="Password" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+            <button onclick="login()" class="w-full bg-red-600 py-2 rounded-lg font-semibold text-sm hover:bg-red-700 transition" data-i18n="admin.login">Login</button>
+        </div>
+        <div class="text-center mt-4">
+            <button id="lang-toggle" onclick="FC.toggleLang()" class="border border-slate-600 text-slate-300 hover:bg-slate-700 text-sm font-semibold px-3 py-1 rounded-lg transition">English</button>
         </div>
     </div>
 
@@ -28,10 +32,13 @@
         <div class="bg-slate-800 border-b border-slate-700 p-6 sticky top-0 z-40 shadow-lg">
             <div class="max-w-7xl mx-auto flex justify-between items-center">
                 <div>
-                    <h1 class="text-3xl font-black text-white">Fraud-Checker-BD Control Panel</h1>
-                    <p class="text-sm text-slate-400 mt-1">Central Administration & Moderation Hub</p>
+                    <h1 class="text-3xl font-black text-white" data-i18n="admin.panel.title">Fraud-Checker-BD Control Panel</h1>
+                    <p class="text-sm text-slate-400 mt-1" data-i18n="admin.panel.sub">Central Administration & Moderation Hub</p>
                 </div>
-                <button onclick="logout()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-semibold transition">Logout</button>
+                <div class="flex items-center gap-3">
+                    <button id="lang-toggle-2" onclick="FC.toggleLang()" class="border border-slate-600 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm font-semibold transition">English</button>
+                    <button onclick="logout()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-semibold transition" data-i18n="admin.logout">Logout</button>
+                </div>
             </div>
         </div>
 
@@ -41,28 +48,28 @@
         <!-- Navigation Tabs -->
         <div class="bg-slate-800 border-b border-slate-700 sticky top-20 z-30">
             <div class="max-w-7xl mx-auto px-6 flex gap-1 overflow-x-auto">
-                <button onclick="switchTab('live')" class="tab-btn active px-4 py-3 text-sm font-semibold border-b-2 border-green-500 text-green-400 hover:text-white transition" data-tab="live">
+                <button onclick="switchTab('live')" class="tab-btn active px-4 py-3 text-sm font-semibold border-b-2 border-green-500 text-green-400 hover:text-white transition" data-tab="live" data-i18n="admin.tab.live">
                     ✓ Live Events
                 </button>
-                <button onclick="switchTab('pending')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="pending">
+                <button onclick="switchTab('pending')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="pending" data-i18n="admin.tab.pending">
                     ⏳ Pending Events
                 </button>
-                <button onclick="switchTab('deleted')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="deleted">
+                <button onclick="switchTab('deleted')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="deleted" data-i18n="admin.tab.deleted">
                     ✕ Deleted Events
                 </button>
-                <button onclick="switchTab('imposters')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="imposters">
+                <button onclick="switchTab('imposters')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="imposters" data-i18n="admin.tab.imposters">
                     👥 Imposter List
                 </button>
-                <button onclick="switchTab('reporters')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="reporters">
+                <button onclick="switchTab('reporters')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="reporters" data-i18n="admin.tab.reporters">
                     📋 Reporter List
                 </button>
-                <button onclick="switchTab('audit')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="audit">
+                <button onclick="switchTab('audit')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="audit" data-i18n="admin.tab.audit">
                     📜 Audit Log
                 </button>
-                <button onclick="switchTab('disputes')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="disputes">
+                <button onclick="switchTab('disputes')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="disputes" data-i18n="admin.tab.disputes">
                     ⚖️ Disputes
                 </button>
-                <button onclick="switchTab('admins')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="admins">
+                <button onclick="switchTab('admins')" class="tab-btn px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition" data-tab="admins" data-i18n="admin.tab.admins">
                     🔑 Admin List
                 </button>
             </div>
@@ -71,14 +78,14 @@
         <!-- Content Area -->
         <div class="max-w-7xl mx-auto p-6">
             <div class="mb-4">
-                <input id="tab-search" type="text" placeholder="Filter the current list…" aria-label="Filter current list" class="w-full sm:w-96 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                <input id="tab-search" type="text" data-i18n-ph="admin.filter_ph" data-i18n-aria="admin.filter_ph" placeholder="Filter the current list…" aria-label="Filter current list" class="w-full sm:w-96 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
             </div>
 
             <!-- Live Events Tab -->
             <div id="live-tab" class="tab-content">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Live Fraud Events</h2>
-                    <p class="text-sm text-slate-400">Approved events currently in the public fraud database</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.live.title">Live Fraud Events</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.live.sub">Approved events currently in the public fraud database</p>
                 </div>
                 <div id="live-events" class="grid gap-4"></div>
             </div>
@@ -86,13 +93,13 @@
             <!-- Pending Events Tab -->
             <div id="pending-tab" class="tab-content hidden">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Pending Fraud Events</h2>
-                    <p class="text-sm text-slate-400">Events awaiting administrative review and approval</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.pending.title">Pending Fraud Events</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.pending.sub">Events awaiting administrative review and approval</p>
                 </div>
                 <div id="pending-bulk" class="hidden mb-4 flex flex-wrap items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-3">
                     <span id="pending-selected" class="text-sm text-slate-300">0 selected</span>
-                    <button onclick="bulkAction('approve')" class="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded text-sm font-semibold transition">Approve selected</button>
-                    <button onclick="bulkAction('reject')" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm font-semibold transition">Reject selected</button>
+                    <button onclick="bulkAction('approve')" class="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded text-sm font-semibold transition" data-i18n="admin.bulk.approve">Approve selected</button>
+                    <button onclick="bulkAction('reject')" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm font-semibold transition" data-i18n="admin.bulk.reject">Reject selected</button>
                 </div>
                 <div id="pending-events" class="grid gap-4"></div>
             </div>
@@ -100,8 +107,8 @@
             <!-- Deleted Events Tab -->
             <div id="deleted-tab" class="tab-content hidden">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Deleted Fraud Events</h2>
-                    <p class="text-sm text-slate-400">Rejected events with reason and timestamp</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.deleted.title">Deleted Fraud Events</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.deleted.sub">Rejected events with reason and timestamp</p>
                 </div>
                 <div id="deleted-events" class="grid gap-4"></div>
             </div>
@@ -109,8 +116,8 @@
             <!-- Imposter List Tab -->
             <div id="imposters-tab" class="tab-content hidden">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Fraud Imposter Database</h2>
-                    <p class="text-sm text-slate-400">Complete list of identified and verified fraudsters</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.imposters.title">Fraud Imposter Database</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.imposters.sub">Complete list of identified and verified fraudsters</p>
                 </div>
                 <div id="imposters-list" class="grid gap-4"></div>
             </div>
@@ -118,8 +125,8 @@
             <!-- Reporter List Tab -->
             <div id="reporters-tab" class="tab-content hidden">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Reporter Contributions</h2>
-                    <p class="text-sm text-slate-400">Community members and their fraud report submissions</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.reporters.title">Reporter Contributions</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.reporters.sub">Community members and their fraud report submissions</p>
                 </div>
                 <div id="reporters-list" class="grid gap-4"></div>
             </div>
@@ -127,8 +134,8 @@
             <!-- Audit Log Tab -->
             <div id="audit-tab" class="tab-content hidden">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Moderation Audit Log</h2>
-                    <p class="text-sm text-slate-400">Every approve / reject / delete / edit action, most recent first</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.audit.title">Moderation Audit Log</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.audit.sub">Every approve / reject / delete / edit action, most recent first</p>
                 </div>
                 <div id="audit-list" class="grid gap-3"></div>
             </div>
@@ -136,8 +143,8 @@
             <!-- Disputes Tab -->
             <div id="disputes-tab" class="tab-content hidden">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Disputes</h2>
-                    <p class="text-sm text-slate-400">Right-of-reply submissions contesting a published report</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.disputes.title">Disputes</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.disputes.sub">Right-of-reply submissions contesting a published report</p>
                 </div>
                 <div id="disputes-list" class="grid gap-3"></div>
             </div>
@@ -145,19 +152,19 @@
             <!-- Admin List Tab -->
             <div id="admins-tab" class="tab-content hidden">
                 <div class="mb-4">
-                    <h2 class="text-xl font-bold text-white mb-2">Admin Management</h2>
-                    <p class="text-sm text-slate-400">System administrators (only a superuser can add or remove accounts)</p>
+                    <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.admins.title">Admin Management</h2>
+                    <p class="text-sm text-slate-400" data-i18n="admin.admins.sub">System administrators (only a superuser can add or remove accounts)</p>
                 </div>
                 <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 mb-4">
-                    <h3 class="text-sm font-bold text-white mb-3">Add an admin</h3>
+                    <h3 class="text-sm font-bold text-white mb-3" data-i18n="admin.add_admin">Add an admin</h3>
                     <div class="grid sm:grid-cols-4 gap-2">
-                        <input id="new-admin-user" placeholder="Username" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
-                        <input id="new-admin-pass" type="password" placeholder="Password (min 8)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                        <input id="new-admin-user" data-i18n-ph="admin.username_ph" placeholder="Username" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                        <input id="new-admin-pass" type="password" data-i18n-ph="admin.password_ph2" placeholder="Password (min 8)" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
                         <select id="new-admin-role" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
                             <option value="admin">admin</option>
                             <option value="superuser">superuser</option>
                         </select>
-                        <button onclick="createAdmin()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold transition">Create</button>
+                        <button onclick="createAdmin()" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-semibold transition" data-i18n="admin.create">Create</button>
                     </div>
                 </div>
                 <div id="admins-list" class="grid gap-3"></div>
@@ -169,7 +176,7 @@
     <div id="detail-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
         <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" role="dialog" aria-modal="true" aria-label="Event details">
             <div class="sticky top-0 bg-slate-800 border-b border-slate-700 p-6 flex justify-between items-center">
-                <h2 class="text-2xl font-bold text-white">Event Details</h2>
+                <h2 class="text-2xl font-bold text-white" data-i18n="admin.modal.title">Event Details</h2>
                 <button onclick="closeModal()" class="text-slate-400 hover:text-white text-2xl">×</button>
             </div>
 
@@ -193,13 +200,13 @@
         const listSkip = {};
 
         const LISTS = {
-            live:      { url: '/api/admin/events/live',      container: 'live-events',    empty: 'No live events at this time', render: renderEventCard, status: 'live' },
-            pending:   { url: '/api/admin/moderation-queue', container: 'pending-events', empty: 'No pending events',           render: renderEventCard, status: 'pending' },
-            deleted:   { url: '/api/admin/events/rejected',  container: 'deleted-events', empty: 'No deleted events',           render: renderEventCard, status: 'deleted' },
-            imposters: { url: '/api/admin/imposters',        container: 'imposters-list', empty: 'No fraudsters in database',   render: renderImposterCard },
-            reporters: { url: '/api/admin/reporters',        container: 'reporters-list', empty: 'No reporters yet',            render: renderReporterCard },
-            audit:     { url: '/api/admin/audit',            container: 'audit-list',     empty: 'No audit entries yet',       render: renderAuditCard },
-            disputes:  { url: '/api/admin/disputes',         container: 'disputes-list',  empty: 'No disputes',                render: renderDisputeCard }
+            live:      { url: '/api/admin/events/live',      container: 'live-events',    empty: 'admin.empty.live',      render: renderEventCard, status: 'live' },
+            pending:   { url: '/api/admin/moderation-queue', container: 'pending-events', empty: 'admin.empty.pending',   render: renderEventCard, status: 'pending' },
+            deleted:   { url: '/api/admin/events/rejected',  container: 'deleted-events', empty: 'admin.empty.deleted',   render: renderEventCard, status: 'deleted' },
+            imposters: { url: '/api/admin/imposters',        container: 'imposters-list', empty: 'admin.empty.imposters', render: renderImposterCard },
+            reporters: { url: '/api/admin/reporters',        container: 'reporters-list', empty: 'admin.empty.reporters', render: renderReporterCard },
+            audit:     { url: '/api/admin/audit',            container: 'audit-list',     empty: 'admin.empty.audit',     render: renderAuditCard },
+            disputes:  { url: '/api/admin/disputes',         container: 'disputes-list',  empty: 'admin.empty.disputes',  render: renderDisputeCard }
         };
 
         // Tracks which tabs have been loaded (so we lazy-load and only refresh
@@ -212,7 +219,7 @@
             opts.headers = Object.assign({}, options.headers, { 'Authorization': 'Bearer ' + token });
             let res;
             try { res = await fetch(url, opts); }
-            catch (e) { FC.toast('Network error: ' + e.message, 'error'); return null; }
+            catch (e) { FC.toast(FC.t('admin.toast.network') + ': ' + e.message, 'error'); return null; }
             if (res.status === 401) { handle401(); return null; }
             try { return await res.json(); } catch (e) { return null; }
         }
@@ -221,7 +228,7 @@
             loaded.clear();
             document.getElementById('admin-block').classList.add('hidden');
             document.getElementById('login-block').classList.remove('hidden');
-            FC.toast('Your admin session has expired. Please log in again.', 'error');
+            FC.toast(FC.t('admin.toast.session'), 'error');
         }
 
         async function login() {
@@ -235,7 +242,7 @@
                     body: JSON.stringify({ username, password })
                 });
                 data = await res.json();
-            } catch (e) { FC.toast('Login error: ' + e.message, 'error'); return; }
+            } catch (e) { FC.toast(FC.t('admin.toast.login_err') + ': ' + e.message, 'error'); return; }
             if (data && data.success) {
                 token = data.token;
                 loaded.clear();
@@ -244,7 +251,7 @@
                 loadList('live', false); // lazy: load only the visible tab; others load when opened
                 loadStats();
             } else {
-                FC.toast((data && data.error) || 'Invalid credentials', 'error');
+                FC.toast((data && data.error) || FC.t('admin.toast.invalid_creds'), 'error');
             }
         }
 
@@ -295,7 +302,7 @@
             const list = Array.isArray(items) ? items : [];
             if (!append) container.innerHTML = ''; // clear skeletons
             if (!append && list.length === 0) {
-                container.innerHTML = `<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">${cfg.empty}</div>`;
+                container.innerHTML = `<div class="col-span-full text-center py-12 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">${FC.t(cfg.empty)}</div>`;
                 setMore(kind, false);
                 return;
             }
@@ -314,7 +321,7 @@
                 wrap.className = 'text-center mt-4';
                 const b = document.createElement('button');
                 b.className = 'bg-slate-700 hover:bg-slate-600 px-5 py-2 rounded-lg text-sm font-semibold transition';
-                b.textContent = 'Load more';
+                b.textContent = FC.t('admin.loadmore');
                 b.addEventListener('click', () => loadList(kind, true));
                 wrap.appendChild(b);
                 container.parentNode.appendChild(wrap);
@@ -327,34 +334,34 @@
 
         function renderEventCard(e, status) {
             const c = {
-                live:    { wrap: 'from-green-900/30 to-slate-800 border-green-700/50 hover:border-green-500', title: 'text-green-400', badge: 'bg-green-500/20 text-green-400 border-green-500/30', label: 'LIVE' },
-                pending: { wrap: 'from-amber-900/30 to-slate-800 border-amber-700/50 hover:border-amber-500', title: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: 'PENDING' },
-                deleted: { wrap: 'from-red-900/30 to-slate-800 border-red-700/50 hover:border-red-500', title: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/30', label: 'REJECTED' }
+                live:    { wrap: 'from-green-900/30 to-slate-800 border-green-700/50 hover:border-green-500', title: 'text-green-400', badge: 'bg-green-500/20 text-green-400 border-green-500/30', label: FC.t('admin.badge.live') },
+                pending: { wrap: 'from-amber-900/30 to-slate-800 border-amber-700/50 hover:border-amber-500', title: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30', label: FC.t('admin.badge.pending') },
+                deleted: { wrap: 'from-red-900/30 to-slate-800 border-red-700/50 hover:border-red-500', title: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/30', label: FC.t('admin.badge.rejected') }
             }[status];
-            const sub = status === 'live' ? `Live since ${FC.timeAgo(e.approved_at)}`
-                : status === 'pending' ? `Submitted: ${FC.fmtDateTime(e.submitted_at)}`
-                : `Rejected ${FC.timeAgo(e.rejected_at)}`;
+            const sub = status === 'live' ? FC.t('admin.live_since', { t: FC.timeAgo(e.approved_at) })
+                : status === 'pending' ? FC.t('admin.submitted', { t: FC.fmtDateTime(e.submitted_at) })
+                : FC.t('admin.rejected_ago', { t: FC.timeAgo(e.rejected_at) });
             const footer = status === 'deleted'
-                ? `<div class="text-xs text-red-500">Reason: ${FC.val(e.rejection_reason, 'Not specified')}</div>`
+                ? `<div class="text-xs text-red-500">${FC.t('admin.reason', { x: FC.val(e.rejection_reason, FC.t('admin.not_specified')) })}</div>`
                 : status === 'live'
-                    ? `<div class="text-xs text-slate-500">Approved: ${FC.fmtDateTime(e.approved_at)}</div>`
-                    : `<div class="text-xs text-slate-500">Awaiting action...</div>`;
+                    ? `<div class="text-xs text-slate-500">${FC.t('admin.approved_at', { t: FC.fmtDateTime(e.approved_at) })}</div>`
+                    : `<div class="text-xs text-slate-500">${FC.t('admin.awaiting')}</div>`;
             return `
                 <div onclick="viewEventDetails('${FC.escapeHtml(e._id)}', '${status}')" class="bg-gradient-to-br ${c.wrap} border rounded-lg p-5 cursor-pointer transition shadow-lg">
-                    ${status === 'pending' ? `<label class="flex items-center gap-2 mb-2 text-xs text-slate-400 w-max" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-check accent-green-500" data-id="${FC.escapeHtml(e._id)}" onclick="updateBulkBar()"> select</label>` : ''}
+                    ${status === 'pending' ? `<label class="flex items-center gap-2 mb-2 text-xs text-slate-400 w-max" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-check accent-green-500" data-id="${FC.escapeHtml(e._id)}" onclick="updateBulkBar()"> ${FC.t('admin.card.select')}</label>` : ''}
                     <div class="flex justify-between items-start mb-3">
                         <div>
-                            <h3 class="text-lg font-bold ${c.title}">${FC.val(e.scam_type, 'Unknown Scam')}</h3>
+                            <h3 class="text-lg font-bold ${c.title}">${FC.val(e.scam_type, FC.t('card.unknown_scam'))}</h3>
                             <p class="text-xs text-slate-400">${sub}</p>
                         </div>
                         <span class="${c.badge} text-xs px-3 py-1 rounded-full border font-semibold">${c.label}</span>
                     </div>
                     <p class="text-sm text-slate-300 mb-3">${FC.escapeHtml(shortDesc(e.description))}</p>
                     <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                        <div>💰 Loss: ${FC.money(e.loss_amount)}</div>
-                        <div>📝 ${FC.val(e.loss_item, 'N/A')}</div>
-                        <div>👤 ${FC.val(e.imposter_name, 'N/A')}</div>
-                        <div>📋 ${FC.val(e.reporter_name, 'N/A')}</div>
+                        <div>💰 ${FC.t('admin.loss')}: ${FC.money(e.loss_amount)}</div>
+                        <div>📝 ${FC.val(e.loss_item, FC.t('common.na'))}</div>
+                        <div>👤 ${FC.val(e.imposter_name, FC.t('common.na'))}</div>
+                        <div>📋 ${FC.val(e.reporter_name, FC.t('common.na'))}</div>
                     </div>
                     ${footer}
                 </div>`;
@@ -362,26 +369,26 @@
         function renderImposterCard(im) {
             return `
                 <a href="/imposter-profile.html?id=${encodeURIComponent(im.id)}" target="_blank" class="block bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-purple-500 transition">
-                    <h3 class="text-lg font-bold text-purple-400 mb-2">${FC.val(im.name, 'Unknown')} <span class="text-xs text-slate-500 font-normal">↗ view profile</span></h3>
+                    <h3 class="text-lg font-bold text-purple-400 mb-2">${FC.val(im.name, FC.t('profile.unknown'))} <span class="text-xs text-slate-500 font-normal">${FC.t('admin.view_profile')}</span></h3>
                     <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                        <div>📱 ${FC.val(im.phone, 'N/A')}</div>
-                        <div>🎯 Scams: ${im.scam_count || 0}</div>
-                        <div>💰 Total Loss: ${FC.money(im.total_loss)}</div>
-                        <div>📍 Last Active: ${im.last_active ? FC.fmtDateTime(im.last_active) : 'N/A'}</div>
+                        <div>📱 ${FC.val(im.phone, FC.t('common.na'))}</div>
+                        <div>🎯 ${FC.t('admin.scams')}: ${im.scam_count || 0}</div>
+                        <div>💰 ${FC.t('admin.total_loss')}: ${FC.money(im.total_loss)}</div>
+                        <div>📍 ${FC.t('admin.last_active')}: ${im.last_active ? FC.fmtDateTime(im.last_active) : FC.t('common.na')}</div>
                     </div>
                 </a>`;
         }
         function renderReporterCard(r) {
             return `
                 <div class="bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-blue-500 transition">
-                    <h3 class="text-lg font-bold text-blue-400 mb-2">${FC.val(r.name, 'Anonymous')}</h3>
+                    <h3 class="text-lg font-bold text-blue-400 mb-2">${FC.val(r.name, FC.t('modal.anonymous'))}</h3>
                     <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 mb-3">
-                        <div>📱 ${FC.val(r.phone, 'N/A')}</div>
-                        <div>📧 ${FC.val(r.email, 'N/A')}</div>
-                        <div>📝 Reports: ${r.report_count || 0}</div>
-                        <div>✅ Approved: ${r.approved_count || 0}</div>
+                        <div>📱 ${FC.val(r.phone, FC.t('common.na'))}</div>
+                        <div>📧 ${FC.val(r.email, FC.t('common.na'))}</div>
+                        <div>📝 ${FC.t('admin.reports')}: ${r.report_count || 0}</div>
+                        <div>✅ ${FC.t('admin.approved_n')}: ${r.approved_count || 0}</div>
                     </div>
-                    <p class="text-xs text-slate-500 mt-2">First Report: ${r.first_report ? FC.fmtDateTime(r.first_report) : 'N/A'}</p>
+                    <p class="text-xs text-slate-500 mt-2">${FC.t('admin.first_report')}: ${r.first_report ? FC.fmtDateTime(r.first_report) : FC.t('common.na')}</p>
                 </div>`;
         }
 
@@ -391,7 +398,7 @@
             currentEventStatus = status;
             const data = await api(`/api/admin/events/${encodeURIComponent(eventId)}/details`);
             if (!data) return;
-            if (!data.event) { FC.toast('Event not found', 'error'); return; }
+            if (!data.event) { FC.toast(FC.t('admin.toast.event_not_found'), 'error'); return; }
             const event = data.event;
             currentEventData = event;
             const tokenQ = 'token=' + encodeURIComponent(token);
@@ -410,68 +417,68 @@
                 ? `<img src="${picSrc}" alt="Imposter" class="w-28 h-28 object-cover rounded-lg border border-slate-700" onerror="this.style.display='none'">`
                 : '<p class="text-slate-400 text-sm">No imposter photo uploaded.</p>';
             const altPhones = Array.isArray(event.alt_phones) && event.alt_phones.length
-                ? `<div class="col-span-2"><p class="text-slate-400 text-xs">Alternative Phones</p><p class="text-slate-300 font-mono">${event.alt_phones.map(FC.escapeHtml).join(', ')}</p></div>` : '';
+                ? `<div class="col-span-2"><p class="text-slate-400 text-xs">${FC.t('admin.f.altphones')}</p><p class="text-slate-300 font-mono">${event.alt_phones.map(FC.escapeHtml).join(', ')}</p></div>` : '';
 
             document.getElementById('modal-content').innerHTML = `
                 <div class="space-y-6">
                     <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                        <h3 class="text-sm font-bold uppercase text-purple-400 mb-3">👤 Imposter Details</h3>
+                        <h3 class="text-sm font-bold uppercase text-purple-400 mb-3">${FC.t('admin.m.imposter')}</h3>
                         <div class="grid grid-cols-2 gap-4 text-sm mb-4">
-                            <div><p class="text-slate-400 text-xs">Name</p><p class="text-white font-semibold">${FC.val(event.imposter_name, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">Nickname</p><p class="text-slate-300">${FC.val(event.imposter_nickname, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">Phone</p><p class="text-slate-300 font-mono">${FC.val(event.imposter_phone, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">NID</p><p class="text-slate-300">${FC.val(event.imposter_nid, 'N/A')}</p></div>
-                            <div class="col-span-2"><p class="text-slate-400 text-xs">Address</p><p class="text-slate-300">${FC.val(event.imposter_address, 'N/A')}</p></div>
-                            <div class="col-span-2"><p class="text-slate-400 text-xs">Social Media</p><p class="text-slate-300">${event.social_media_account ? FC.socialLink(event.social_media_account) : 'N/A'}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.name')}</p><p class="text-white font-semibold">${FC.val(event.imposter_name, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.nickname')}</p><p class="text-slate-300">${FC.val(event.imposter_nickname, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.phone')}</p><p class="text-slate-300 font-mono">${FC.val(event.imposter_phone, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.nid')}</p><p class="text-slate-300">${FC.val(event.imposter_nid, FC.t('common.na'))}</p></div>
+                            <div class="col-span-2"><p class="text-slate-400 text-xs">${FC.t('admin.f.address')}</p><p class="text-slate-300">${FC.val(event.imposter_address, FC.t('common.na'))}</p></div>
+                            <div class="col-span-2"><p class="text-slate-400 text-xs">${FC.t('admin.f.social')}</p><p class="text-slate-300">${event.social_media_account ? FC.socialLink(event.social_media_account) : FC.t('common.na')}</p></div>
                             ${altPhones}
                         </div>
                     </div>
                     <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                        <h3 class="text-sm font-bold uppercase text-green-400 mb-3">🎯 Scam Details</h3>
+                        <h3 class="text-sm font-bold uppercase text-green-400 mb-3">${FC.t('admin.m.scam')}</h3>
                         <div class="grid grid-cols-2 gap-4 text-sm mb-4">
-                            <div><p class="text-slate-400 text-xs">Type</p><p class="text-white font-semibold">${FC.val(event.scam_type, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">Loss Item</p><p class="text-slate-300">${FC.val(event.loss_item, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">Loss Amount</p><p class="text-red-400 font-semibold">${FC.money(event.loss_amount)}</p></div>
-                            <div><p class="text-slate-400 text-xs">Location</p><p class="text-slate-300">${FC.val(event.scam_location, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">GD Number</p><p class="text-slate-300">${FC.val(event.gd_number, 'N/A')}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.type')}</p><p class="text-white font-semibold">${FC.val(event.scam_type, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.lossitem')}</p><p class="text-slate-300">${FC.val(event.loss_item, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.lossamount')}</p><p class="text-red-400 font-semibold">${FC.money(event.loss_amount)}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.location')}</p><p class="text-slate-300">${FC.val(event.scam_location, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.gd')}</p><p class="text-slate-300">${FC.val(event.gd_number, FC.t('common.na'))}</p></div>
                         </div>
-                        <div><p class="text-slate-400 text-xs mb-2">Description</p><p class="text-slate-200 text-sm leading-relaxed bg-slate-800/50 p-3 rounded border border-slate-700 whitespace-pre-line">${FC.escapeHtml(event.description || '')}</p></div>
+                        <div><p class="text-slate-400 text-xs mb-2">${FC.t('admin.f.desc')}</p><p class="text-slate-200 text-sm leading-relaxed bg-slate-800/50 p-3 rounded border border-slate-700 whitespace-pre-line">${FC.escapeHtml(event.description || '')}</p></div>
                     </div>
                     <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                        <h3 class="text-sm font-bold uppercase text-amber-400 mb-3">📸 Evidence</h3>
-                        <div class="mb-4"><p class="text-slate-400 text-xs mb-2">Imposter Photo</p>${photoHtml}</div>
-                        <div><p class="text-slate-400 text-xs mb-2">Proof Files (${proofs.length})</p><div class="grid grid-cols-3 gap-3">${proofsHtml}</div></div>
+                        <h3 class="text-sm font-bold uppercase text-amber-400 mb-3">${FC.t('admin.m.evidence')}</h3>
+                        <div class="mb-4"><p class="text-slate-400 text-xs mb-2">${FC.t('admin.f.photo')}</p>${photoHtml}</div>
+                        <div><p class="text-slate-400 text-xs mb-2">${FC.t('admin.f.prooffiles', { n: proofs.length })}</p><div class="grid grid-cols-3 gap-3">${proofsHtml}</div></div>
                     </div>
                     <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                        <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">📋 Reporter Details</h3>
+                        <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">${FC.t('admin.m.reporter')}</h3>
                         <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div><p class="text-slate-400 text-xs">Name</p><p class="text-white font-semibold">${FC.val(event.reporter_name, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">Visibility</p><p class="text-slate-300 capitalize">${FC.val(event.reporter_visibility, 'public')}</p></div>
-                            <div><p class="text-slate-400 text-xs">Phone</p><p class="text-slate-300">${FC.val(event.reporter_phone, 'N/A')}</p></div>
-                            <div><p class="text-slate-400 text-xs">Email</p><p class="text-slate-300">${FC.val(event.reporter_email, 'N/A')}</p></div>
-                            <div class="col-span-2"><p class="text-slate-400 text-xs">Submitted</p><p class="text-slate-300">${FC.fmtDateTime(event.submitted_at)}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.name')}</p><p class="text-white font-semibold">${FC.val(event.reporter_name, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.visibility')}</p><p class="text-slate-300 capitalize">${FC.val(event.reporter_visibility, 'public')}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.phone')}</p><p class="text-slate-300">${FC.val(event.reporter_phone, FC.t('common.na'))}</p></div>
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.email')}</p><p class="text-slate-300">${FC.val(event.reporter_email, FC.t('common.na'))}</p></div>
+                            <div class="col-span-2"><p class="text-slate-400 text-xs">${FC.t('admin.f.submitted')}</p><p class="text-slate-300">${FC.fmtDateTime(event.submitted_at)}</p></div>
                         </div>
                     </div>
                     <div class="border border-slate-700 rounded-lg p-4 bg-slate-900/50">
-                        <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">📊 Event Status</h3>
+                        <h3 class="text-sm font-bold uppercase text-slate-400 mb-3">${FC.t('admin.m.status')}</h3>
                         <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div><p class="text-slate-400 text-xs">Status</p><p class="text-white font-semibold capitalize">${FC.val(event.status, 'N/A')}</p></div>
-                            ${event.approved_at ? `<div><p class="text-slate-400 text-xs">Approved</p><p class="text-green-400">${FC.fmtDateTime(event.approved_at)}</p></div>` : ''}
-                            ${event.rejected_at ? `<div><p class="text-slate-400 text-xs">Rejected</p><p class="text-red-400">${FC.fmtDateTime(event.rejected_at)}</p></div><div><p class="text-slate-400 text-xs">Reason</p><p class="text-slate-300">${FC.val(event.rejection_reason, 'N/A')}</p></div>` : ''}
+                            <div><p class="text-slate-400 text-xs">${FC.t('admin.f.status')}</p><p class="text-white font-semibold capitalize">${FC.val(event.status, FC.t('common.na'))}</p></div>
+                            ${event.approved_at ? `<div><p class="text-slate-400 text-xs">${FC.t('admin.f.approved')}</p><p class="text-green-400">${FC.fmtDateTime(event.approved_at)}</p></div>` : ''}
+                            ${event.rejected_at ? `<div><p class="text-slate-400 text-xs">${FC.t('admin.f.rejected')}</p><p class="text-red-400">${FC.fmtDateTime(event.rejected_at)}</p></div><div><p class="text-slate-400 text-xs">${FC.t('admin.f.reason')}</p><p class="text-slate-300">${FC.val(event.rejection_reason, FC.t('common.na'))}</p></div>` : ''}
                         </div>
                     </div>
                 </div>`;
 
-            let actions = '<button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Close</button>';
-            const editBtn = `<button onclick="editEvent()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Edit</button>`;
+            let actions = `<button onclick="closeModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">${FC.t('admin.btn.close')}</button>`;
+            const editBtn = `<button onclick="editEvent()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">${FC.t('admin.edit')}</button>`;
             if (status === 'pending') {
                 actions += editBtn + `
-                    <button onclick="rejectEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Reject</button>
-                    <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Approve</button>`;
+                    <button onclick="rejectEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">${FC.t('admin.reject')}</button>
+                    <button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">${FC.t('admin.approve')}</button>`;
             } else if (status === 'live') {
-                actions += editBtn + `<button onclick="deleteEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">Delete</button>`;
+                actions += editBtn + `<button onclick="deleteEvent()" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-semibold transition">${FC.t('admin.delete')}</button>`;
             } else if (status === 'deleted') {
-                actions += editBtn + `<button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">Re-approve</button>`;
+                actions += editBtn + `<button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">${FC.t('admin.reapprove')}</button>`;
             }
             document.getElementById('modal-actions').innerHTML = actions;
             document.getElementById('detail-modal').classList.remove('hidden');
@@ -483,7 +490,7 @@
             FC.toast(data.message || 'Approved', 'success'); closeModal(); reloadLoaded();
         }
         async function rejectEvent() {
-            const reason = prompt('Enter rejection reason:');
+            const reason = prompt(FC.t('admin.reject_prompt'));
             if (!reason) return;
             const data = await api(`/api/admin/events/${encodeURIComponent(currentEventId)}/reject`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -493,7 +500,7 @@
             FC.toast(data.message || 'Rejected', 'success'); closeModal(); reloadLoaded();
         }
         async function deleteEvent() {
-            if (!confirm('Are you sure you want to delete this event?')) return;
+            if (!confirm(FC.t('admin.delete_confirm'))) return;
             const data = await api(`/api/admin/events/${encodeURIComponent(currentEventId)}`, { method: 'DELETE' });
             if (!data) return;
             FC.toast(data.message || 'Deleted', 'success'); closeModal(); reloadLoaded();
@@ -517,12 +524,12 @@
             const s = await api('/api/admin/stats');
             if (!s || s.error) return;
             const cards = [
-                ['Pending', s.pending, 'text-amber-400'],
-                ['Live', s.approved, 'text-green-400'],
-                ['Rejected', s.rejected, 'text-red-400'],
-                ['Fraudsters', s.profiles, 'text-purple-400'],
-                ['Total loss', FC.money(s.total_loss), 'text-orange-400'],
-                ['New (7d)', s.reports_last_7d, 'text-blue-400']
+                [FC.t('admin.stat.pending'), s.pending, 'text-amber-400'],
+                [FC.t('admin.stat.live'), s.approved, 'text-green-400'],
+                [FC.t('admin.stat.rejected'), s.rejected, 'text-red-400'],
+                [FC.t('admin.stat.fraudsters'), s.profiles, 'text-purple-400'],
+                [FC.t('admin.stat.loss'), FC.money(s.total_loss), 'text-orange-400'],
+                [FC.t('admin.stat.new7'), s.reports_last_7d, 'text-blue-400']
             ];
             document.getElementById('stats-bar').innerHTML = cards.map(([label, val, cls]) => `
                 <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 text-center">
@@ -535,12 +542,12 @@
         function renderAuditCard(a) {
             const colors = { approve: 'text-green-400', reject: 'text-red-400', delete: 'text-red-400', edit: 'text-blue-400' };
             const extra = a.reason ? `— ${FC.escapeHtml(a.reason)}`
-                : (Array.isArray(a.fields) && a.fields.length ? `— fields: ${FC.escapeHtml(a.fields.join(', '))}` : '');
+                : (Array.isArray(a.fields) && a.fields.length ? `— ${FC.t('admin.au.fields')} ${FC.escapeHtml(a.fields.join(', '))}` : '');
             return `
                 <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex justify-between items-center gap-4 text-sm">
                     <div class="min-w-0">
-                        <span class="font-bold uppercase ${colors[a.action] || 'text-slate-300'}">${FC.val(a.action, 'action')}</span>
-                        <span class="text-slate-400">by ${FC.val(a.admin, 'system')}</span>
+                        <span class="font-bold uppercase ${colors[a.action] || 'text-slate-300'}">${FC.val(a.action, FC.t('admin.au.action'))}</span>
+                        <span class="text-slate-400">${FC.t('admin.au.by')} ${FC.val(a.admin, FC.t('admin.au.system'))}</span>
                         <span class="text-slate-500">${extra}</span>
                     </div>
                     <div class="text-xs text-slate-500 whitespace-nowrap">${FC.fmtDateTime(a.at)}</div>
@@ -554,23 +561,23 @@
                 <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
                     <div class="flex justify-between items-start gap-3 mb-2">
                         <div class="min-w-0">
-                            <span class="text-xs px-2 py-0.5 rounded-full ${badge}">${FC.val(d.status, 'open')}</span>
-                            <span class="text-sm text-slate-300 ml-2">Re: <a href="/event-detail.html?id=${encodeURIComponent(d.event_id)}" target="_blank" class="text-blue-400 hover:underline">${FC.val(d.event_imposter, 'report')}</a> ${d.event_scam ? '(' + FC.escapeHtml(d.event_scam) + ')' : ''}</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full ${badge}">${FC.t('admin.st.' + (d.status || 'open'))}</span>
+                            <span class="text-sm text-slate-300 ml-2">${FC.t('admin.dc.re')} <a href="/event-detail.html?id=${encodeURIComponent(d.event_id)}" target="_blank" class="text-blue-400 hover:underline">${FC.val(d.event_imposter, FC.t('card.unknown_imposter'))}</a> ${d.event_scam ? '(' + FC.escapeHtml(d.event_scam) + ')' : ''}</span>
                         </div>
                         <span class="text-xs text-slate-500 whitespace-nowrap">${FC.fmtDateTime(d.created_at)}</span>
                     </div>
                     <p class="text-sm text-slate-200 bg-slate-900/50 p-3 rounded border border-slate-700 whitespace-pre-line">${FC.escapeHtml(d.reason || '')}</p>
-                    ${d.contact ? `<p class="text-xs text-slate-400 mt-2">Contact: ${FC.escapeHtml(d.contact)}</p>` : ''}
+                    ${d.contact ? `<p class="text-xs text-slate-400 mt-2">${FC.t('admin.dc.contact')} ${FC.escapeHtml(d.contact)}</p>` : ''}
                     ${d.status === 'open'
                         ? `<div class="flex gap-2 mt-3">
-                            <button onclick="resolveDispute('${FC.escapeHtml(d.id)}','resolved')" class="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded text-sm font-semibold transition">Mark resolved</button>
-                            <button onclick="resolveDispute('${FC.escapeHtml(d.id)}','dismissed')" class="bg-slate-600 hover:bg-slate-500 px-3 py-1.5 rounded text-sm font-semibold transition">Dismiss</button>
+                            <button onclick="resolveDispute('${FC.escapeHtml(d.id)}','resolved')" class="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded text-sm font-semibold transition">${FC.t('admin.dc.resolve')}</button>
+                            <button onclick="resolveDispute('${FC.escapeHtml(d.id)}','dismissed')" class="bg-slate-600 hover:bg-slate-500 px-3 py-1.5 rounded text-sm font-semibold transition">${FC.t('admin.dc.dismiss')}</button>
                         </div>`
-                        : (d.note ? `<p class="text-xs text-slate-500 mt-2">Note: ${FC.escapeHtml(d.note)}</p>` : '')}
+                        : (d.note ? `<p class="text-xs text-slate-500 mt-2">${FC.t('admin.dc.note')} ${FC.escapeHtml(d.note)}</p>` : '')}
                 </div>`;
         }
         async function resolveDispute(id, status) {
-            const note = prompt('Optional note:') || '';
+            const note = prompt(FC.t('admin.note_prompt')) || '';
             const data = await api('/api/admin/disputes/' + encodeURIComponent(id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, note }) });
             if (!data) return;
             if (data.error) { FC.toast(data.error, 'error'); return; }
@@ -584,15 +591,15 @@
             container.innerHTML = skeletonCards(2);
             const rows = await api('/api/admin/admins');
             if (rows === null) return;
-            if (!Array.isArray(rows) || rows.length === 0) { container.innerHTML = '<div class="text-slate-400 text-sm">No admins.</div>'; return; }
+            if (!Array.isArray(rows) || rows.length === 0) { container.innerHTML = `<div class="text-slate-400 text-sm">${FC.t('admin.empty.admins')}</div>`; return; }
             container.innerHTML = rows.map(a => `
                 <div class="bg-slate-800 border border-slate-700 rounded-lg p-4 flex justify-between items-center">
                     <div>
                         <span class="font-bold text-white">${FC.val(a.username, '')}</span>
                         <span class="text-xs px-2 py-0.5 rounded-full ml-2 ${a.role === 'superuser' ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-700 text-slate-300'}">${FC.val(a.role, 'admin')}</span>
-                        <p class="text-xs text-slate-500 mt-1">Created ${FC.fmtDate(a.created_at)}</p>
+                        <p class="text-xs text-slate-500 mt-1">${FC.t('admin.am.created')} ${FC.fmtDate(a.created_at)}</p>
                     </div>
-                    <button onclick="deleteAdmin('${FC.escapeHtml(a.id)}', '${FC.escapeHtml(a.username)}')" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm font-semibold transition">Remove</button>
+                    <button onclick="deleteAdmin('${FC.escapeHtml(a.id)}', '${FC.escapeHtml(a.username)}')" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm font-semibold transition">${FC.t('admin.am.remove')}</button>
                 </div>`).join('');
             filterActiveList();
         }
@@ -600,7 +607,7 @@
             const username = document.getElementById('new-admin-user').value.trim();
             const password = document.getElementById('new-admin-pass').value;
             const role = document.getElementById('new-admin-role').value;
-            if (!username || !password) { FC.toast('Username and password are required', 'error'); return; }
+            if (!username || !password) { FC.toast(FC.t('admin.toast.ureq'), 'error'); return; }
             const data = await api('/api/admin/admins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, role }) });
             if (!data) return;
             if (data.error) { FC.toast(data.error, 'error'); return; }
@@ -610,7 +617,7 @@
             loadAdmins();
         }
         async function deleteAdmin(id, username) {
-            if (!confirm('Remove admin "' + username + '"?')) return;
+            if (!confirm(FC.t('admin.toast.confirm_remove', { u: username }))) return;
             const data = await api('/api/admin/admins/' + encodeURIComponent(id), { method: 'DELETE' });
             if (!data) return;
             if (data.error) { FC.toast(data.error, 'error'); return; }
@@ -634,15 +641,15 @@
         // ---- bulk approve / reject (pending) ----
         function updateBulkBar() {
             const checks = document.querySelectorAll('#pending-events .bulk-check:checked');
-            document.getElementById('pending-selected').textContent = checks.length + ' selected';
+            document.getElementById('pending-selected').textContent = FC.t('admin.selected_n', { n: checks.length });
             document.getElementById('pending-bulk').classList.toggle('hidden', checks.length === 0);
         }
         async function bulkAction(action) {
             const ids = Array.from(document.querySelectorAll('#pending-events .bulk-check:checked')).map(c => c.dataset.id);
             if (ids.length === 0) return;
             let reason = '';
-            if (action === 'reject') { reason = prompt('Rejection reason for ' + ids.length + ' event(s):'); if (!reason) return; }
-            if (!confirm(`${action === 'approve' ? 'Approve' : 'Reject'} ${ids.length} event(s)?`)) return;
+            if (action === 'reject') { reason = prompt(FC.t('admin.bulk_reject_prompt', { n: ids.length })); if (!reason) return; }
+            if (!confirm(action === 'approve' ? FC.t('admin.bulk_confirm_approve', { n: ids.length }) : FC.t('admin.bulk_confirm_reject', { n: ids.length }))) return;
             let okCount = 0;
             for (const id of ids) {
                 const opts = action === 'approve'
@@ -651,7 +658,7 @@
                 const d = await api(`/api/admin/events/${encodeURIComponent(id)}/${action}`, opts);
                 if (d && !d.error) okCount++;
             }
-            FC.toast(`${okCount}/${ids.length} ${action === 'approve' ? 'approved' : 'rejected'}`, 'success');
+            FC.toast(action === 'approve' ? FC.t('admin.bulk_done_approve', { ok: okCount, total: ids.length }) : FC.t('admin.bulk_done_reject', { ok: okCount, total: ids.length }), 'success');
             document.getElementById('pending-bulk').classList.add('hidden');
             reloadLoaded();
         }
@@ -664,27 +671,27 @@
             const e = currentEventData;
             if (!e) return;
             document.getElementById('modal-content').innerHTML = `
-                <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">✏️ Edit event</h3>
+                <h3 class="text-sm font-bold uppercase text-blue-400 mb-3">${FC.t('admin.edit.title')}</h3>
                 <div class="grid sm:grid-cols-2 gap-3">
-                    ${editField('imposter_name', 'Imposter name', e.imposter_name)}
-                    ${editField('imposter_phone', 'Phone', e.imposter_phone)}
-                    ${editField('imposter_nickname', 'Nickname', e.imposter_nickname)}
-                    ${editField('imposter_nid', 'NID', e.imposter_nid)}
-                    ${editField('scam_type', 'Scam type', e.scam_type)}
-                    ${editField('loss_item', 'Loss item', e.loss_item)}
-                    ${editField('loss_amount', 'Loss amount', e.loss_amount)}
-                    ${editField('scam_location', 'Location', e.scam_location)}
-                    ${editField('gd_number', 'GD number', e.gd_number)}
-                    ${editField('imposter_address', 'Address', e.imposter_address)}
+                    ${editField('imposter_name', FC.t('admin.f.name'), e.imposter_name)}
+                    ${editField('imposter_phone', FC.t('admin.f.phone'), e.imposter_phone)}
+                    ${editField('imposter_nickname', FC.t('admin.f.nickname'), e.imposter_nickname)}
+                    ${editField('imposter_nid', FC.t('admin.f.nid'), e.imposter_nid)}
+                    ${editField('scam_type', FC.t('admin.f.type'), e.scam_type)}
+                    ${editField('loss_item', FC.t('admin.f.lossitem'), e.loss_item)}
+                    ${editField('loss_amount', FC.t('admin.f.lossamount'), e.loss_amount)}
+                    ${editField('scam_location', FC.t('admin.f.location'), e.scam_location)}
+                    ${editField('gd_number', FC.t('admin.f.gd'), e.gd_number)}
+                    ${editField('imposter_address', FC.t('admin.f.address'), e.imposter_address)}
                 </div>
-                <div class="mt-3">${editField('social_media_account', 'Social media', e.social_media_account)}</div>
+                <div class="mt-3">${editField('social_media_account', FC.t('admin.f.social'), e.social_media_account)}</div>
                 <div class="mt-3">
-                    <label class="block text-xs text-slate-400 mb-1">Description (30–500 chars)</label>
+                    <label class="block text-xs text-slate-400 mb-1">${FC.t('admin.edit.desc')}</label>
                     <textarea id="edit-description" rows="4" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-blue-500">${FC.escapeHtml(e.description || '')}</textarea>
                 </div>`;
             document.getElementById('modal-actions').innerHTML = `
-                <button onclick="viewEventDetails('${FC.escapeHtml(currentEventId)}', '${currentEventStatus}')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">Cancel</button>
-                <button onclick="saveEdit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">Save changes</button>`;
+                <button onclick="viewEventDetails('${FC.escapeHtml(currentEventId)}', '${currentEventStatus}')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition">${FC.t('admin.btn.cancel')}</button>
+                <button onclick="saveEdit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">${FC.t('admin.btn.save')}</button>`;
         }
         async function saveEdit() {
             const fields = ['imposter_name', 'imposter_phone', 'imposter_nickname', 'imposter_nid', 'scam_type', 'loss_item', 'loss_amount', 'scam_location', 'gd_number', 'imposter_address', 'social_media_account'];
@@ -702,6 +709,17 @@
         document.getElementById('tab-search').addEventListener('input', filterActiveList);
         document.getElementById('detail-modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
         FC.onEscape(closeModal);
+
+        // Re-render dynamic content when the language is switched.
+        document.addEventListener('fc:langchange', () => {
+            if (!token) return;
+            loadStats();
+            reloadLoaded();
+            if (activeTab === 'admins') loadAdmins();
+            if (currentEventId && !document.getElementById('detail-modal').classList.contains('hidden')) {
+                viewEventDetails(currentEventId, currentEventStatus);
+            }
+        });
     </script>
 </body>
 </html>

@@ -10,21 +10,23 @@
     <meta name="theme-color" content="#dc2626">
     <meta name="description" content="Report a fraud incident to Bangladesh's community fraud database. Submit imposter details, scam details, and evidence for review.">
     <script src="/shared.js"></script>
+    <script src="/i18n.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
     <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm">
         <a href="/" class="text-xl font-bold text-red-600 tracking-tight">Fraud-Checker-BD</a>
-        <div class="space-x-4">
-            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Search</a>
-            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a>
+        <div class="flex items-center gap-3">
+            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium" data-i18n="nav.search">Search</a>
+            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium" data-i18n="nav.admin">Admin Panel</a>
+            <button id="lang-toggle" onclick="FC.toggleLang()" class="border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-semibold px-3 py-1 rounded-lg transition">English</button>
         </div>
     </nav>
 
     <div class="max-w-4xl mx-auto my-12 px-4">
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <div class="bg-red-600 text-white px-8 py-6">
-                <h2 class="text-3xl font-bold">Submit Fraud Incident Report</h2>
-                <p class="text-red-100 text-sm mt-2">All submissions undergo administrative review before public listing</p>
+                <h2 class="text-3xl font-bold" data-i18n="submit.title">Submit Fraud Incident Report</h2>
+                <p class="text-red-100 text-sm mt-2" data-i18n="submit.subtitle">All submissions undergo administrative review before public listing</p>
             </div>
 
             <form id="submissionForm" onsubmit="submitForm(event)" class="p-8 space-y-8">
@@ -36,13 +38,13 @@
                 <div class="border-2 border-blue-200 rounded-lg p-6 bg-blue-50">
                     <h3 class="text-xl font-bold text-blue-900 mb-6 flex items-center gap-2">
                         <span class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">1</span>
-                        Imposter Personal Details
+                        <span data-i18n="submit.sec1">Imposter Personal Details</span>
                     </h3>
 
                     <!-- Imposter Picture -->
                     <div class="mb-6">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Picture</label>
-                        <p class="text-xs text-slate-500 mb-3">Upload a photo of the imposter (JPG, PNG, max 5MB)</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.picture">Imposter Picture</label>
+                        <p class="text-xs text-slate-500 mb-3" data-i18n="submit.picture_hint">Upload a photo of the imposter (JPG, PNG, max 5MB)</p>
                         <input type="file" id="imposter_picture" accept="image/*" class="block w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         <div id="imposter_preview" class="mt-3 relative inline-block"></div>
                     </div>
@@ -50,14 +52,14 @@
                     <!-- Imposter Name & Nickname -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Name <span class="text-red-600">*</span></label>
-                            <p class="text-xs text-slate-500 mb-2">Full name of the fraudster as known</p>
+                            <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.name">Imposter Name</span> <span class="text-red-600">*</span></label>
+                            <p class="text-xs text-slate-500 mb-2" data-i18n="submit.name_hint">Full name of the fraudster as known</p>
                             <input type="text" id="imposter_name" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
 
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Nickname / Pseudonym</label>
-                            <p class="text-xs text-slate-500 mb-2">Also known as (optional)</p>
+                            <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.nickname">Nickname / Pseudonym</label>
+                            <p class="text-xs text-slate-500 mb-2" data-i18n="submit.nickname_hint">Also known as (optional)</p>
                             <input type="text" id="imposter_nickname" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                     </div>
@@ -65,15 +67,15 @@
                     <!-- Imposter Phone & NID -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Phone Number <span class="text-red-600">*</span></label>
-                            <p class="text-xs text-slate-500 mb-2">Format: +880XXXXXXXXX or 01XXXXXXXXX</p>
+                            <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.phone">Imposter Phone Number</span> <span class="text-red-600">*</span></label>
+                            <p class="text-xs text-slate-500 mb-2" data-i18n="submit.phone_hint">Format: +880XXXXXXXXX or 01XXXXXXXXX</p>
                             <input type="tel" id="imposter_phone" required pattern="[0-9+\-]{10,15}" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                             <p id="phone_error" class="text-xs text-red-600 mt-1 hidden"></p>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">NID / ID Card Number</label>
-                            <p class="text-xs text-slate-500 mb-2">National ID, passport, or other identity document number</p>
+                            <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.nid">NID / ID Card Number</label>
+                            <p class="text-xs text-slate-500 mb-2" data-i18n="submit.nid_hint">National ID, passport, or other identity document number</p>
                             <input type="text" id="imposter_nid" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                     </div>
@@ -82,15 +84,15 @@
 
                     <!-- Social Media Account -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Social Media Account</label>
-                        <p class="text-xs text-slate-500 mb-2">Link to fraudster's social media profile (optional)</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.social">Social Media Account</label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.social_hint">Link to fraudster's social media profile (optional)</p>
                         <input type="text" id="social_media_account" placeholder="e.g., https://facebook.com/profile or @username" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     </div>
 
                     <!-- Address -->
                     <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Imposter Address</label>
-                        <p class="text-xs text-slate-500 mb-2">Last known address or location</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.address">Imposter Address</label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.address_hint">Last known address or location</p>
                         <input type="text" id="imposter_address" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                     </div>
                 </div>
@@ -99,92 +101,92 @@
                 <div class="border-2 border-green-200 rounded-lg p-6 bg-green-50">
                     <h3 class="text-xl font-bold text-green-900 mb-6 flex items-center gap-2">
                         <span class="bg-green-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                        Scam Details
+                        <span data-i18n="submit.sec2">Scam Details</span>
                     </h3>
 
                     <!-- Scam Type -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Type of Scam <span class="text-red-600">*</span></label>
+                            <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.scam_type">Type of Scam</span> <span class="text-red-600">*</span></label>
                             <select id="scam_type" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
-                                <option value="">-- Select Scam Type --</option>
-                                <option value="Ticket Fraud">Ticket Fraud (Flight, Movie, Event)</option>
-                                <option value="Hotel Booking">Hotel Booking Scam</option>
-                                <option value="Tour/Travel">Tour Group / Travel Fraud</option>
-                                <option value="Reservation">Restaurant/Event Reservation Scam</option>
-                                <option value="E-Commerce">E-Commerce / Online Shopping</option>
-                                <option value="Mobile Banking">Mobile Banking / Payment Fraud</option>
-                                <option value="Job Offer">Job Offer Scam</option>
-                                <option value="Loan/Investment">Loan / Investment Scam</option>
-                                <option value="Romance">Romance / Dating Scam</option>
-                                <option value="Other">Other (please specify below)</option>
+                                <option value="" data-i18n="submit.scam_select">-- Select Scam Type --</option>
+                                <option value="Ticket Fraud" data-i18n="sopt.ticket">Ticket Fraud (Flight, Movie, Event)</option>
+                                <option value="Hotel Booking" data-i18n="sopt.hotel">Hotel Booking Scam</option>
+                                <option value="Tour/Travel" data-i18n="sopt.tour">Tour Group / Travel Fraud</option>
+                                <option value="Reservation" data-i18n="sopt.reservation">Restaurant/Event Reservation Scam</option>
+                                <option value="E-Commerce" data-i18n="sopt.ecommerce">E-Commerce / Online Shopping</option>
+                                <option value="Mobile Banking" data-i18n="sopt.mobile_banking">Mobile Banking / Payment Fraud</option>
+                                <option value="Job Offer" data-i18n="sopt.job">Job Offer Scam</option>
+                                <option value="Loan/Investment" data-i18n="sopt.loan">Loan / Investment Scam</option>
+                                <option value="Romance" data-i18n="sopt.romance">Romance / Dating Scam</option>
+                                <option value="Other" data-i18n="sopt.other">Other (please specify below)</option>
                             </select>
-                            <input type="text" id="scam_type_other" placeholder="Specify other type..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm mt-2 hidden">
+                            <input type="text" id="scam_type_other" data-i18n-ph="submit.scam_other" placeholder="Specify other type..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm mt-2 hidden">
                         </div>
 
                         <!-- Loss Item -->
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Loss Item / Property <span class="text-red-600">*</span></label>
+                            <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.loss_item">Loss Item / Property</span> <span class="text-red-600">*</span></label>
                             <select id="loss_item" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
-                                <option value="">-- Select Loss Item --</option>
-                                <option value="Money">Money / Cash</option>
-                                <option value="Reputation">Reputation / Trust</option>
-                                <option value="Device">Device (Phone, Laptop, etc.)</option>
-                                <option value="Personal Data">Personal Data / Information</option>
-                                <option value="Jewelry">Jewelry / Valuables</option>
-                                <option value="Documents">Important Documents</option>
-                                <option value="Other">Other (please specify below)</option>
+                                <option value="" data-i18n="submit.loss_select">-- Select Loss Item --</option>
+                                <option value="Money" data-i18n="lopt.money">Money / Cash</option>
+                                <option value="Reputation" data-i18n="lopt.reputation">Reputation / Trust</option>
+                                <option value="Device" data-i18n="lopt.device">Device (Phone, Laptop, etc.)</option>
+                                <option value="Personal Data" data-i18n="lopt.personal">Personal Data / Information</option>
+                                <option value="Jewelry" data-i18n="lopt.jewelry">Jewelry / Valuables</option>
+                                <option value="Documents" data-i18n="lopt.documents">Important Documents</option>
+                                <option value="Other" data-i18n="lopt.other">Other (please specify below)</option>
                             </select>
-                            <input type="text" id="loss_item_other" placeholder="Specify other item..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm mt-2 hidden">
+                            <input type="text" id="loss_item_other" data-i18n-ph="submit.loss_other" placeholder="Specify other item..." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm mt-2 hidden">
                         </div>
                     </div>
 
                     <!-- Loss Amount -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Value of Loss (BDT) <span class="text-red-600">*</span></label>
-                        <p class="text-xs text-slate-500 mb-2">Estimated loss amount in Bangladeshi Taka</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.loss_amount">Value of Loss (BDT)</span> <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.loss_amount_hint">Estimated loss amount in Bangladeshi Taka</p>
                         <input type="number" id="loss_amount" required min="0" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
                     </div>
 
                     <!-- Description -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Description of the Scam <span class="text-red-600">*</span></label>
-                        <p class="text-xs text-slate-500 mb-2">Detailed explanation (30-500 characters)</p>
-                        <textarea id="description" required minlength="30" maxlength="500" rows="5" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" placeholder="Describe what happened..."></textarea>
+                        <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.desc">Description of the Scam</span> <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.desc_hint">Detailed explanation (30-500 characters)</p>
+                        <textarea id="description" required minlength="30" maxlength="500" rows="5" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" data-i18n-ph="submit.desc_ph" placeholder="Describe what happened..."></textarea>
                         <div class="flex justify-between items-center mt-2">
-                            <p class="text-xs text-slate-500">Character count: <span id="char_count">0</span>/500</p>
-                            <p id="char_warning" class="text-xs text-red-600 hidden">Minimum 30 characters required</p>
+                            <p class="text-xs text-slate-500"><span data-i18n="submit.char_count">Character count:</span> <span id="char_count">0</span>/500</p>
+                            <p id="char_warning" class="text-xs text-red-600 hidden" data-i18n="submit.char_warn">Minimum 30 characters required</p>
                         </div>
                     </div>
 
                     <!-- Proofs -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Proof of the Scam <span class="text-red-600">*</span></label>
-                        <p class="text-xs text-slate-500 mb-2">Screenshots, images, videos or documents (max 20 files total, 50MB each)</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.proof">Proof of the Scam</span> <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.proof_hint">Screenshots, images, videos or documents (max 20 files total, 50MB each)</p>
                         <input type="file" id="scam_proofs" accept="image/*,video/*,.pdf,.doc,.docx" multiple class="block w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
-                        <p id="file_count" class="text-xs text-slate-600 mt-2">Selected: 0 file(s)</p>
+                        <p id="file_count" class="text-xs text-slate-600 mt-2" data-i18n="submit.proof_selected">Selected: 0 file(s)</p>
                         <div id="proofs_preview" class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4"></div>
-                        <p id="file_warning" class="text-xs text-red-600 mt-2 hidden">Maximum 20 files allowed. Please remove some files.</p>
+                        <p id="file_warning" class="text-xs text-red-600 mt-2 hidden" data-i18n="submit.proof_warn">Maximum 20 files allowed. Please remove some files.</p>
                     </div>
 
                     <!-- Location -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Location of Scam</label>
-                        <p class="text-xs text-slate-500 mb-2">Where the scam took place (online platform, location, etc.)</p>
-                        <input type="text" id="scam_location" placeholder="e.g., Facebook, OLX, WhatsApp, etc." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                        <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.scam_loc">Location of Scam</label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.scam_loc_hint">Where the scam took place (online platform, location, etc.)</p>
+                        <input type="text" id="scam_location" data-i18n-ph="submit.scam_loc_ph" placeholder="e.g., Facebook, OLX, WhatsApp, etc." class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
                     </div>
 
                     <!-- GD Number -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">General Diary (GD) Number</label>
-                        <p class="text-xs text-slate-500 mb-2">Police GD/FIR number if filed</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.gd">General Diary (GD) Number</label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.gd_hint">Police GD/FIR number if filed</p>
                         <input type="text" id="gd_number" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
                     </div>
 
                     <!-- Alternative Phone -->
                     <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Alternative Phone Number of Scammer</label>
-                        <p class="text-xs text-slate-500 mb-2">Other phone numbers used by the fraudster</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.alt_phone">Alternative Phone Number of Scammer</label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.alt_phone_hint">Other phone numbers used by the fraudster</p>
                         <div id="alt_phones_container" class="space-y-2">
                             <div class="flex gap-2">
                                 <input type="tel" class="alt_phone_input flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" pattern="[0-9+\-]{10,15}" placeholder="+880XXXXXXXXX">
@@ -198,28 +200,28 @@
                 <div class="border-2 border-purple-200 rounded-lg p-6 bg-purple-50">
                     <h3 class="text-xl font-bold text-purple-900 mb-6 flex items-center gap-2">
                         <span class="bg-purple-600 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">3</span>
-                        Reporter Information
+                        <span data-i18n="submit.sec3">Reporter Information</span>
                     </h3>
 
                     <!-- Reporter Name -->
                     <div class="mb-4">
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Your Name <span class="text-red-600">*</span></label>
-                        <p class="text-xs text-slate-500 mb-2">Full name or pseudonym (can be hidden from public)</p>
+                        <label class="block text-sm font-bold text-slate-700 mb-2"><span data-i18n="submit.your_name">Your Name</span> <span class="text-red-600">*</span></label>
+                        <p class="text-xs text-slate-500 mb-2" data-i18n="submit.your_name_hint">Full name or pseudonym (can be hidden from public)</p>
                         <input type="text" id="reporter_name" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
                     </div>
 
                     <!-- Reporter Phone -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Your Phone Number</label>
-                            <p class="text-xs text-slate-500 mb-2">For follow-up purposes (optional)</p>
+                            <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.your_phone">Your Phone Number</label>
+                            <p class="text-xs text-slate-500 mb-2" data-i18n="submit.your_phone_hint">For follow-up purposes (optional)</p>
                             <input type="tel" id="reporter_phone" pattern="[0-9+\-]{10,15}" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
                         </div>
 
                         <!-- Reporter Email -->
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Your Email</label>
-                            <p class="text-xs text-slate-500 mb-2">For updates and notifications (optional)</p>
+                            <label class="block text-sm font-bold text-slate-700 mb-2" data-i18n="submit.your_email">Your Email</label>
+                            <p class="text-xs text-slate-500 mb-2" data-i18n="submit.your_email_hint">For updates and notifications (optional)</p>
                             <input type="email" id="reporter_email" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
                         </div>
                     </div>
@@ -227,29 +229,29 @@
                     <!-- Visibility Toggle -->
                     <div class="flex items-center gap-3 p-4 bg-white rounded-lg border border-slate-300">
                         <input type="checkbox" id="hide_reporter" class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500">
-                        <label for="hide_reporter" class="text-sm font-semibold text-slate-700 select-none">
+                        <label for="hide_reporter" class="text-sm font-semibold text-slate-700 select-none" data-i18n="submit.hide">
                             Hide my information from public event list
                         </label>
                     </div>
-                    <p class="text-xs text-slate-500 mt-2">If checked, your report will be marked as "Anonymous" publicly</p>
+                    <p class="text-xs text-slate-500 mt-2" data-i18n="submit.hide_hint">If checked, your report will be marked as "Anonymous" publicly</p>
                 </div>
 
                 <!-- SUBMIT BUTTON -->
                 <div class="flex justify-between items-center pt-6 border-t border-slate-200">
-                    <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">← Back to Search</a>
-                    <button type="submit" class="bg-red-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-red-700 transition shadow-lg">Submit Report</button>
+                    <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium" data-i18n="submit.back">← Back to Search</a>
+                    <button type="submit" class="bg-red-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-red-700 transition shadow-lg" data-i18n="submit.button">Submit Report</button>
                 </div>
             </form>
 
             <!-- Success panel (shown after a successful submission) -->
             <div id="success-panel" class="hidden p-8 text-center">
                 <div class="text-5xl mb-4">✅</div>
-                <h2 class="text-2xl font-bold text-slate-900 mb-2">Report submitted</h2>
-                <p class="text-slate-600 mb-1">Thank you — your report will be reviewed by our team before it appears publicly.</p>
-                <p class="text-xs text-slate-400 mb-6">Reference ID: <span id="success-ref" class="font-mono"></span></p>
+                <h2 class="text-2xl font-bold text-slate-900 mb-2" data-i18n="submit.success.title">Report submitted</h2>
+                <p class="text-slate-600 mb-1" data-i18n="submit.success.body">Thank you — your report will be reviewed by our team before it appears publicly.</p>
+                <p class="text-xs text-slate-400 mb-6"><span data-i18n="submit.success.ref">Reference ID:</span> <span id="success-ref" class="font-mono"></span></p>
                 <div class="flex gap-3 justify-center">
-                    <a href="/" class="bg-slate-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-slate-700 transition">Search the database</a>
-                    <a href="/submit.html" class="bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition">Report another</a>
+                    <a href="/" class="bg-slate-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-slate-700 transition" data-i18n="submit.success.search">Search the database</a>
+                    <a href="/submit.html" class="bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="submit.success.another">Report another</a>
                 </div>
             </div>
         </div>
@@ -376,7 +378,7 @@
             });
 
             // Update file count display
-            document.getElementById('file_count').textContent = `Selected: ${uploadedProofs.length} file(s)`;
+            document.getElementById('file_count').textContent = FC.t('submit.proof_selected_n', { n: uploadedProofs.length });
             
             // Show/hide warning
             if (uploadedProofs.length >= 20) {
@@ -398,7 +400,7 @@
 
             // Check total count
             if (uploadedProofs.length + files.length > 20) {
-                FC.toast(`Cannot add ${files.length} file(s). Maximum 20 files total. Current: ${uploadedProofs.length}`);
+                FC.toast(FC.t('submit.toast.max_files'), 'error');
                 e.target.value = '';
                 return;
             }
@@ -420,7 +422,7 @@
             const inputCount = container.querySelectorAll('.alt_phone_input').length;
 
             if (inputCount >= 5) {
-                FC.toast('Maximum 5 alternative phone numbers allowed');
+                FC.toast(FC.t('submit.toast.max_alt'), 'error');
                 return;
             }
 
@@ -443,13 +445,13 @@
             const reporterPhone = document.getElementById('reporter_phone').value;
             
             if (imposterPhone && !validatePhone(imposterPhone)) {
-                document.getElementById('phone_error').textContent = 'Invalid phone format';
+                document.getElementById('phone_error').textContent = FC.t('submit.phone_invalid');
                 document.getElementById('phone_error').classList.remove('hidden');
                 return;
             }
 
             if (reporterPhone && !validatePhone(reporterPhone)) {
-                FC.toast('Invalid reporter phone number format');
+                FC.toast(FC.t('submit.toast.invalid_rphone'), 'error');
                 return;
             }
 
@@ -457,7 +459,7 @@
             const altPhoneInputs = document.querySelectorAll('.alt_phone_input');
             for (let input of altPhoneInputs) {
                 if (input.value && !validatePhone(input.value)) {
-                    FC.toast('Invalid alternative phone number format: ' + input.value);
+                    FC.toast(FC.t('submit.toast.invalid_alt') + ': ' + input.value, 'error');
                     return;
                 }
             }
@@ -465,13 +467,13 @@
             // Validate description length
             const description = document.getElementById('description').value;
             if (description.length < 30 || description.length > 500) {
-                FC.toast('Description must be between 30 and 500 characters');
+                FC.toast(FC.t('submit.toast.desc_len'), 'error');
                 return;
             }
 
             // Validate at least one proof file
             if (uploadedProofs.length === 0) {
-                FC.toast('Please upload at least one proof file');
+                FC.toast(FC.t('submit.toast.proof_required'), 'error');
                 return;
             }
 
@@ -529,12 +531,12 @@
                     document.getElementById('success-ref').textContent = data.eventId || '';
                     document.getElementById('success-panel').classList.remove('hidden');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
-                    FC.toast('✓ Report submitted', 'success');
+                    FC.toast(FC.t('submit.toast.success'), 'success');
                 } else {
-                    FC.toast('Error: ' + (data.message || data.error), 'error');
+                    FC.toast(FC.t('submit.toast.error_prefix') + ': ' + (data.message || data.error), 'error');
                 }
             } catch (err) {
-                FC.toast('Submission error: ' + err.message, 'error');
+                FC.toast(FC.t('submit.toast.submit_error') + ': ' + err.message, 'error');
             }
         }
 
@@ -549,11 +551,9 @@
                 if (phone) params.set('phone', phone);
                 if (nid) params.set('nid', nid);
                 const d = await (await fetch('/api/check?' + params.toString())).json();
-                const parts = [];
-                if (d.phone_reports > 0) parts.push(`${d.phone_reports} existing report${d.phone_reports > 1 ? 's' : ''} for this phone`);
-                if (d.nid_reports > 0) parts.push(`${d.nid_reports} for this NID`);
-                if (parts.length) {
-                    hint.textContent = '⚠️ Found ' + parts.join(' and ') + '. You can still submit — your report adds corroboration.';
+                const total = (d.phone_reports || 0) + (d.nid_reports || 0);
+                if (total > 0) {
+                    hint.textContent = FC.t('submit.dup', { n: total });
                     hint.classList.remove('hidden');
                 } else {
                     hint.classList.add('hidden');
@@ -584,7 +584,7 @@
                 document.getElementById('scam_type').dispatchEvent(new Event('change'));
                 document.getElementById('loss_item').dispatchEvent(new Event('change'));
                 document.getElementById('description').dispatchEvent(new Event('input'));
-                FC.toast('Draft restored', 'info');
+                FC.toast(FC.t('submit.toast.draft_restored'), 'info');
             }
         }
         DRAFT_FIELDS.forEach((id) => { const el = document.getElementById(id); if (el) el.addEventListener('input', saveDraft); });

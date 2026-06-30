@@ -13,14 +13,16 @@
     <meta property="og:description" content="A verified fraud report from Bangladesh's community fraud database.">
     <meta property="og:type" content="article">
     <script src="/shared.js"></script>
+    <script src="/i18n.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
     <!-- Navigation -->
     <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-40">
         <a href="/" class="text-2xl font-black text-red-600 tracking-tight">Fraud-Checker-BD</a>
-        <div class="space-x-4">
-            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">← Back to Search</a>
-            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a>
+        <div class="flex items-center gap-3">
+            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium" data-i18n="nav.back_search">← Back to Search</a>
+            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium" data-i18n="nav.admin">Admin Panel</a>
+            <button id="lang-toggle" onclick="FC.toggleLang()" class="border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-semibold px-3 py-1 rounded-lg transition">English</button>
         </div>
     </nav>
 
@@ -28,7 +30,7 @@
     <main class="max-w-4xl mx-auto mt-8 px-4 pb-12">
         <div id="loading" class="text-center py-12">
             <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-            <p class="mt-4 text-slate-600">Loading event details...</p>
+            <p class="mt-4 text-slate-600" data-i18n="detail.loading">Loading event details...</p>
         </div>
 
         <div id="content" class="hidden space-y-6">
@@ -40,20 +42,20 @@
                     </div>
                     <div>
                         <h1 id="event-title" class="text-3xl font-black">Loading...</h1>
-                        <p id="event-subtitle" class="text-red-100 mt-2">Verified Fraudster</p>
+                        <p id="event-subtitle" class="text-red-100 mt-2" data-i18n="detail.subtitle">Verified Fraudster</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-4 mt-6">
                     <div>
-                        <p class="text-red-100 text-sm">Loss Amount</p>
+                        <p class="text-red-100 text-sm" data-i18n="detail.loss">Loss Amount</p>
                         <p id="loss-amount" class="text-2xl font-bold">৳0</p>
                     </div>
                     <div>
-                        <p class="text-red-100 text-sm">Scam Type</p>
+                        <p class="text-red-100 text-sm" data-i18n="detail.scam_type">Scam Type</p>
                         <p id="scam-type" class="text-2xl font-bold">-</p>
                     </div>
                     <div>
-                        <p class="text-red-100 text-sm">Location</p>
+                        <p class="text-red-100 text-sm" data-i18n="detail.location">Location</p>
                         <p id="location" class="text-2xl font-bold">-</p>
                     </div>
                 </div>
@@ -63,34 +65,34 @@
             <div id="trust-bar" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="bg-white border border-slate-200 rounded-xl p-5 text-center shadow-sm">
                     <p id="trust-count" class="text-3xl font-black text-red-600">0</p>
-                    <p class="text-xs text-slate-500 font-semibold mt-1">Reports of this number</p>
+                    <p class="text-xs text-slate-500 font-semibold mt-1" data-i18n="detail.trust.count">Reports of this number</p>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl p-5 text-center shadow-sm">
                     <p id="trust-first" class="text-sm font-bold text-slate-800">-</p>
-                    <p class="text-xs text-slate-500 font-semibold mt-1">First reported</p>
+                    <p class="text-xs text-slate-500 font-semibold mt-1" data-i18n="detail.trust.first">First reported</p>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl p-5 text-center shadow-sm">
                     <p id="trust-last" class="text-sm font-bold text-slate-800">-</p>
-                    <p class="text-xs text-slate-500 font-semibold mt-1">Most recent report</p>
+                    <p class="text-xs text-slate-500 font-semibold mt-1" data-i18n="detail.trust.last">Most recent report</p>
                 </div>
             </div>
 
             <!-- Fraud Details Section -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">📋 Fraud Details</h2>
+                <h2 class="text-2xl font-bold text-slate-900 mb-6" data-i18n="detail.fraud_details">📋 Fraud Details</h2>
                 <div class="grid md:grid-cols-2 gap-6 mb-6">
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Item Lost</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.item_lost">Item Lost</p>
                         <p id="loss-item" class="text-lg text-slate-900 font-bold">-</p>
                     </div>
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">GD Number (Police)</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.gd">GD Number (Police)</p>
                         <p id="gd-number" class="text-lg text-slate-900 font-bold">-</p>
                     </div>
                 </div>
-                
+
                 <div>
-                    <p class="text-slate-600 text-sm font-semibold mb-3">Description</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-3" data-i18n="detail.desc">Description</p>
                     <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
                         <p id="description" class="text-slate-800 leading-relaxed">-</p>
                     </div>
@@ -99,56 +101,56 @@
 
             <!-- Imposter Details Section -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">👤 Imposter Profile Details</h2>
-                
+                <h2 class="text-2xl font-bold text-slate-900 mb-6" data-i18n="detail.imposter">👤 Imposter Profile Details</h2>
+
                 <div class="grid md:grid-cols-2 gap-6 mb-6">
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Full Name</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.full_name">Full Name</p>
                         <p id="imposter-name" class="text-lg text-slate-900 font-bold">-</p>
                     </div>
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Nickname / Pseudonym</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.nickname">Nickname / Pseudonym</p>
                         <p id="imposter-nickname" class="text-lg text-slate-900">-</p>
                     </div>
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Primary Phone</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.primary_phone">Primary Phone</p>
                         <p id="imposter-phone" class="text-lg text-slate-900 font-mono font-bold">-</p>
                     </div>
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">NID / ID Number</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.nid">NID / ID Number</p>
                         <p id="imposter-nid" class="text-lg text-slate-900">-</p>
                     </div>
                 </div>
 
                 <div id="alt-phones-section" class="mb-6 hidden">
-                    <p class="text-slate-600 text-sm font-semibold mb-2">Alternative Phone Numbers</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.alt_phones">Alternative Phone Numbers</p>
                     <div id="alt-phones" class="space-y-2"></div>
                 </div>
 
                 <div id="address-section" class="mb-6 hidden">
-                    <p class="text-slate-600 text-sm font-semibold mb-2">Address / Location</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.address">Address / Location</p>
                     <p id="imposter-address" class="text-slate-800 bg-slate-50 p-4 rounded-lg border border-slate-200">-</p>
                 </div>
 
                 <div id="social-media-section" class="mb-6 hidden">
-                    <p class="text-slate-600 text-sm font-semibold mb-2">Social Media Account</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="detail.social">Social Media Account</p>
                     <p id="social-media-wrap" class="break-all">-</p>
                 </div>
 
                 <div id="profile-link-section" class="hidden">
-                    <a id="profile-link" href="#" class="inline-block bg-purple-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-purple-700 transition">👤 View Full Fraudster Profile →</a>
+                    <a id="profile-link" href="#" class="inline-block bg-purple-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-purple-700 transition" data-i18n="detail.profile_link">👤 View Full Fraudster Profile →</a>
                 </div>
             </div>
 
             <!-- Evidence/Proofs Section -->
             <div id="proofs-section" class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm hidden">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">📸 Evidence & Proofs</h2>
+                <h2 class="text-2xl font-bold text-slate-900 mb-6" data-i18n="detail.evidence">📸 Evidence & Proofs</h2>
                 <div id="proofs-container" class="grid md:grid-cols-2 gap-6"></div>
             </div>
 
             <!-- Reporter Information Section -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">📢 Reported By</h2>
+                <h2 class="text-2xl font-bold text-slate-900 mb-6" data-i18n="detail.reported_by">📢 Reported By</h2>
                 <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
                     <p id="reporter-name" class="text-slate-800 font-semibold text-lg">-</p>
                     <p id="reporter-visibility" class="text-slate-600 text-sm mt-2">Reporter information is private</p>
@@ -158,39 +160,39 @@
 
             <!-- Share Section -->
             <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                <h3 class="font-bold text-slate-900 mb-3">🔗 Share This Report</h3>
-                <p class="text-slate-600 text-sm mb-3">Help others stay safe by sharing this fraud report:</p>
+                <h3 class="font-bold text-slate-900 mb-3" data-i18n="detail.share">🔗 Share This Report</h3>
+                <p class="text-slate-600 text-sm mb-3" data-i18n="detail.share_body">Help others stay safe by sharing this fraud report:</p>
                 <div class="flex gap-2">
                     <input type="text" id="share-link" readonly class="flex-1 px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm font-mono" value="">
-                    <button onclick="copyShareLink()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">Copy Link</button>
+                    <button onclick="copyShareLink()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition" data-i18n="detail.copy">Copy Link</button>
                 </div>
             </div>
 
             <!-- Dispute / right of reply -->
             <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                <h3 class="font-bold text-slate-900 mb-2">⚖️ Is this report wrong?</h3>
-                <p class="text-slate-600 text-sm mb-3">If you are the person named here, or you have evidence this report is inaccurate, submit a dispute and our moderators will review it.</p>
-                <button id="dispute-toggle" onclick="toggleDispute()" class="bg-slate-700 text-white px-5 py-2 rounded-lg font-semibold hover:bg-slate-800 transition">Dispute this report</button>
+                <h3 class="font-bold text-slate-900 mb-2" data-i18n="detail.dispute.title">⚖️ Is this report wrong?</h3>
+                <p class="text-slate-600 text-sm mb-3" data-i18n="detail.dispute.body">If you are the person named here, or you have evidence this report is inaccurate, submit a dispute and our moderators will review it.</p>
+                <button id="dispute-toggle" onclick="toggleDispute()" class="bg-slate-700 text-white px-5 py-2 rounded-lg font-semibold hover:bg-slate-800 transition" data-i18n="detail.dispute.button">Dispute this report</button>
                 <div id="dispute-form" class="hidden mt-4 space-y-3">
-                    <textarea id="dispute-reason" rows="4" maxlength="1000" placeholder="Explain why this report is inaccurate (20–1000 characters)…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"></textarea>
-                    <input id="dispute-contact" type="text" placeholder="Your contact (optional, for follow-up)" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
-                    <button onclick="submitDispute()" class="bg-red-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-red-700 transition">Submit dispute</button>
+                    <textarea id="dispute-reason" rows="4" maxlength="1000" data-i18n-ph="detail.dispute.reason_ph" placeholder="Explain why this report is inaccurate (20–1000 characters)…" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500"></textarea>
+                    <input id="dispute-contact" type="text" data-i18n-ph="detail.dispute.contact_ph" placeholder="Your contact (optional, for follow-up)" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-500">
+                    <button onclick="submitDispute()" class="bg-red-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="detail.dispute.submit">Submit dispute</button>
                 </div>
             </div>
 
             <!-- Action Section -->
             <div class="flex gap-4 justify-center">
-                <a href="/" class="bg-slate-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-700 transition">← Back to Search</a>
-                <a href="/submit.html" class="bg-red-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-red-700 transition">Report Another Incident</a>
+                <a href="/" class="bg-slate-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-700 transition" data-i18n="nav.back_search">← Back to Search</a>
+                <a href="/submit.html" class="bg-red-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-red-700 transition" data-i18n="common.report_another">Report Another Incident</a>
             </div>
         </div>
 
         <!-- Error Message -->
         <div id="error" class="hidden text-center py-12">
             <div class="text-6xl mb-4">❌</div>
-            <h2 class="text-2xl font-bold text-slate-900 mb-2">Event Not Found</h2>
-            <p class="text-slate-600 mb-6">This fraud report could not be found or may have been removed.</p>
-            <a href="/" class="inline-block bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 transition">Return to Search</a>
+            <h2 class="text-2xl font-bold text-slate-900 mb-2" data-i18n="detail.notfound.title">Event Not Found</h2>
+            <p class="text-slate-600 mb-6" data-i18n="detail.notfound.body">This fraud report could not be found or may have been removed.</p>
+            <a href="/" class="inline-block bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 transition" data-i18n="detail.notfound.button">Return to Search</a>
         </div>
     </main>
 
@@ -203,7 +205,7 @@
         async function submitDispute() {
             const reason = document.getElementById('dispute-reason').value.trim();
             const contact = document.getElementById('dispute-contact').value.trim();
-            if (reason.length < 20) { FC.toast('Please provide at least 20 characters.', 'info'); return; }
+            if (reason.length < 20) { FC.toast(FC.t('toast.dispute_min'), 'info'); return; }
             try {
                 const res = await fetch(`/api/events/${encodeURIComponent(detailEventId)}/dispute`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -254,10 +256,10 @@
                 avatarDiv.innerHTML = `${avatarLetter}<img src="${picUrl}" alt="Imposter photo" class="absolute inset-0 w-full h-full object-cover cursor-pointer" onclick="openImageModal('${picUrl}')" onerror="this.remove()">`;
 
                 // Header / summary
-                document.getElementById('event-title').textContent = event.imposter_name || 'Unknown Imposter';
+                document.getElementById('event-title').textContent = event.imposter_name || FC.t('card.unknown_imposter');
                 document.getElementById('loss-amount').textContent = FC.money(event.loss_amount);
-                document.getElementById('scam-type').textContent = event.scam_type || 'Not provided';
-                document.getElementById('location').textContent = event.scam_location || event.address || 'Not provided';
+                document.getElementById('scam-type').textContent = event.scam_type || FC.t('common.not_provided');
+                document.getElementById('location').textContent = event.scam_location || event.address || FC.t('common.not_provided');
 
                 // Trust signals (corroboration count + first/last reported)
                 if (data.trust) {
@@ -268,13 +270,13 @@
                 }
 
                 // Fraud details
-                document.getElementById('loss-item').textContent = event.loss_item || 'Not provided';
-                document.getElementById('gd-number').textContent = event.gd_number || 'Not filed';
-                document.getElementById('description').textContent = event.description || 'No description provided';
+                document.getElementById('loss-item').textContent = event.loss_item || FC.t('common.not_provided');
+                document.getElementById('gd-number').textContent = event.gd_number || FC.t('detail.not_filed');
+                document.getElementById('description').textContent = event.description || FC.t('modal.no_desc');
 
                 // Imposter details (textContent is XSS-safe)
-                document.getElementById('imposter-name').textContent = event.imposter_name || 'Not provided';
-                document.getElementById('imposter-phone').textContent = event.imposter_phone || 'Not provided';
+                document.getElementById('imposter-name').textContent = event.imposter_name || FC.t('common.not_provided');
+                document.getElementById('imposter-phone').textContent = event.imposter_phone || FC.t('common.not_provided');
                 if (event.imposter_nickname) document.getElementById('imposter-nickname').textContent = event.imposter_nickname;
                 if (event.imposter_nid) document.getElementById('imposter-nid').textContent = event.imposter_nid;
                 if (event.imposter_address) {
@@ -312,24 +314,24 @@
                             return `<div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
                                 <div class="bg-slate-200 rounded-lg h-40 flex items-center justify-center mb-2 text-3xl">🎥</div>
                                 <p class="text-xs text-slate-600 font-semibold">${name}</p>
-                                <a href="${url}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Open / Download Video</a></div>`;
+                                <a href="${url}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">${FC.t('detail.download_video')}</a></div>`;
                         }
                         return `<div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
                             <div class="text-3xl mb-2">📄</div>
                             <p class="text-xs text-slate-600 font-semibold">${name}</p>
-                            <a href="${url}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">Open / Download</a></div>`;
+                            <a href="${url}" class="text-xs text-blue-600 hover:underline mt-2 inline-block">${FC.t('detail.download')}</a></div>`;
                     }).join('');
                 }
 
                 // Reporter info
                 if (event.reporter_visibility === 'public' && event.reporter_name) {
                     document.getElementById('reporter-name').textContent = event.reporter_name;
-                    document.getElementById('reporter-visibility').textContent = 'Reporter details are public';
+                    document.getElementById('reporter-visibility').textContent = FC.t('detail.reporter_public');
                 } else {
-                    document.getElementById('reporter-name').textContent = 'Anonymous';
-                    document.getElementById('reporter-visibility').textContent = 'Reporter information is private (per reporter request)';
+                    document.getElementById('reporter-name').textContent = FC.t('modal.anonymous');
+                    document.getElementById('reporter-visibility').textContent = FC.t('detail.reporter_private');
                 }
-                document.getElementById('report-date').textContent = `📅 Reported on ${FC.fmtDate(event.submitted_at)}`;
+                document.getElementById('report-date').textContent = `📅 ${FC.t('modal.reported_on')} ${FC.fmtDate(event.submitted_at)}`;
 
                 // Link to the consolidated fraudster profile when present.
                 if (data.profile && data.profile._id) {
@@ -359,9 +361,9 @@
             link.select();
             try {
                 navigator.clipboard ? navigator.clipboard.writeText(link.value) : document.execCommand('copy');
-                FC.toast('Link copied to clipboard', 'success');
+                FC.toast(FC.t('toast.link_copied'), 'success');
             } catch (e) {
-                FC.toast('Could not copy the link', 'error');
+                FC.toast(FC.t('toast.copy_fail'), 'error');
             }
         }
 
@@ -387,6 +389,7 @@
 
         // Load event details when page loads
         document.addEventListener('DOMContentLoaded', loadEventDetails);
+        document.addEventListener('fc:langchange', () => { if (detailEventId) loadEventDetails(); });
     </script>
 </body>
 </html>

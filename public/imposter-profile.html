@@ -13,14 +13,16 @@
     <meta property="og:description" content="A verified fraudster profile from Bangladesh's community fraud database.">
     <meta property="og:type" content="profile">
     <script src="/shared.js"></script>
+    <script src="/i18n.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans">
     <!-- Navigation -->
     <nav class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-40">
         <a href="/" class="text-2xl font-black text-red-600 tracking-tight">Fraud-Checker-BD</a>
-        <div class="space-x-4">
-            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium">← Back to Search</a>
-            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium">Admin Panel</a>
+        <div class="flex items-center gap-3">
+            <a href="/" class="text-slate-600 hover:text-slate-900 text-sm font-medium" data-i18n="nav.back_search">← Back to Search</a>
+            <a href="/admin.html" class="text-slate-600 hover:text-slate-900 text-sm font-medium" data-i18n="nav.admin">Admin Panel</a>
+            <button id="lang-toggle" onclick="FC.toggleLang()" class="border border-slate-300 text-slate-700 hover:bg-slate-100 text-sm font-semibold px-3 py-1 rounded-lg transition">English</button>
         </div>
     </nav>
 
@@ -28,7 +30,7 @@
     <main class="max-w-5xl mx-auto mt-8 px-4 pb-12">
         <div id="loading" class="text-center py-12">
             <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
-            <p class="mt-4 text-slate-600">Loading imposter profile...</p>
+            <p class="mt-4 text-slate-600" data-i18n="profile.loading">Loading imposter profile...</p>
         </div>
 
         <div id="content" class="hidden space-y-6">
@@ -40,7 +42,7 @@
                     </div>
                     <div class="flex-grow">
                         <h1 id="imposter-name" class="text-4xl font-black">Loading...</h1>
-                        <p class="text-purple-100 mt-2 text-lg">Verified Fraudster Profile</p>
+                        <p class="text-purple-100 mt-2 text-lg" data-i18n="profile.verified_profile">Verified Fraudster Profile</p>
                     </div>
                 </div>
             </div>
@@ -48,32 +50,32 @@
             <!-- Profile Stats -->
             <div class="grid md:grid-cols-4 gap-4">
                 <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                    <p class="text-slate-600 text-sm font-semibold mb-2">Total Incidents</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="profile.total">Total Incidents</p>
                     <p id="incident-count" class="text-3xl font-black text-red-600">0</p>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                    <p class="text-slate-600 text-sm font-semibold mb-2">Total Loss</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="profile.total_loss">Total Loss</p>
                     <p id="total-loss" class="text-3xl font-black text-orange-600">৳0</p>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                    <p class="text-slate-600 text-sm font-semibold mb-2">Last Active</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="profile.last_active">Last Active</p>
                     <p id="last-active" class="text-lg font-bold text-blue-600">-</p>
                 </div>
                 <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                    <p class="text-slate-600 text-sm font-semibold mb-2">Profile Status</p>
-                    <p class="text-lg font-bold text-red-600">🔴 Verified</p>
+                    <p class="text-slate-600 text-sm font-semibold mb-2" data-i18n="profile.status">Profile Status</p>
+                    <p class="text-lg font-bold text-red-600" data-i18n="profile.status_verified">🔴 Verified</p>
                 </div>
             </div>
 
             <!-- Contact Information -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">📱 Known Contact Information</h2>
+                <h2 class="text-2xl font-bold text-slate-900 mb-6" data-i18n="profile.contact">📱 Known Contact Information</h2>
                 <div id="contact-info" class="space-y-3"></div>
             </div>
 
             <!-- Profile Details -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">ℹ️ Profile Details</h2>
+                <h2 class="text-2xl font-bold text-slate-900 mb-6" data-i18n="profile.details">ℹ️ Profile Details</h2>
                 <div class="grid md:grid-cols-2 gap-6">
                     <div id="profile-details" class="space-y-4"></div>
                 </div>
@@ -81,29 +83,29 @@
 
             <!-- Fraud Incident History -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">🔴 Fraud Incident History</h2>
+                <h2 class="text-2xl font-bold text-slate-900 mb-6" data-i18n="profile.history">🔴 Fraud Incident History</h2>
                 <div id="incidents-container" class="space-y-4"></div>
             </div>
 
             <!-- Warning Section -->
             <div class="bg-red-50 border-2 border-red-200 rounded-xl p-6">
-                <h3 class="font-bold text-red-900 mb-2">⚠️ Be Cautious</h3>
-                <p class="text-red-800">If you encounter this person, do not send money, share personal information, or engage in any financial transactions. Report any new incidents immediately.</p>
-                <a href="/submit.html" class="inline-block mt-4 bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition">Report a New Incident with This Person</a>
+                <h3 class="font-bold text-red-900 mb-2" data-i18n="profile.warn.title">⚠️ Be Cautious</h3>
+                <p class="text-red-800" data-i18n="profile.warn.body">If you encounter this person, do not send money, share personal information, or engage in any financial transactions. Report any new incidents immediately.</p>
+                <a href="/submit.html" class="inline-block mt-4 bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition" data-i18n="profile.warn.button">Report a New Incident with This Person</a>
             </div>
 
             <!-- Action Section -->
             <div class="flex gap-4 justify-center">
-                <a href="/" class="bg-slate-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-700 transition">← Back to Search</a>
+                <a href="/" class="bg-slate-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-700 transition" data-i18n="nav.back_search">← Back to Search</a>
             </div>
         </div>
 
         <!-- Error Message -->
         <div id="error" class="hidden text-center py-12">
             <div class="text-6xl mb-4">❌</div>
-            <h2 class="text-2xl font-bold text-slate-900 mb-2">Profile Not Found</h2>
-            <p class="text-slate-600 mb-6">This imposter profile could not be found or may have been removed.</p>
-            <a href="/" class="inline-block bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 transition">Return to Search</a>
+            <h2 class="text-2xl font-bold text-slate-900 mb-2" data-i18n="profile.notfound.title">Profile Not Found</h2>
+            <p class="text-slate-600 mb-6" data-i18n="profile.notfound.body">This imposter profile could not be found or may have been removed.</p>
+            <a href="/" class="inline-block bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 transition" data-i18n="detail.notfound.button">Return to Search</a>
         </div>
     </main>
 
@@ -135,7 +137,7 @@
                     return;
                 }
 
-                const displayName = profile.display_name || 'Unknown Fraudster';
+                const displayName = profile.display_name || FC.t('profile.unknown_fraudster');
 
                 // Page title + header
                 document.title = `${displayName} - Imposter Profile | Fraud-Checker-BD`;
@@ -173,19 +175,19 @@
 
                 document.getElementById('incident-count').textContent = events.length;
                 document.getElementById('total-loss').textContent = FC.money(totalLoss);
-                document.getElementById('last-active').textContent = lastActiveDate ? FC.fmtDate(lastActiveDate) : 'Unknown';
+                document.getElementById('last-active').textContent = lastActiveDate ? FC.fmtDate(lastActiveDate) : FC.t('profile.unknown');
 
                 // Contact Information (escaped)
                 document.getElementById('contact-info').innerHTML = `
                     <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <p class="text-sm text-slate-600 font-semibold mb-2">Phone Numbers (${uniquePhones.size})</p>
+                        <p class="text-sm text-slate-600 font-semibold mb-2">${FC.t('profile.phones', { n: uniquePhones.size })}</p>
                         <div class="space-y-2">
-                            ${Array.from(uniquePhones).map(phone => `<p class="text-slate-800 font-mono bg-white p-2 rounded border border-slate-200 text-sm">${FC.escapeHtml(phone)}</p>`).join('') || '<p class="text-slate-600 text-sm">No phone numbers found</p>'}
+                            ${Array.from(uniquePhones).map(phone => `<p class="text-slate-800 font-mono bg-white p-2 rounded border border-slate-200 text-sm">${FC.escapeHtml(phone)}</p>`).join('') || `<p class="text-slate-600 text-sm">${FC.t('profile.no_phones')}</p>`}
                         </div>
                     </div>
                     ${uniqueNIDs.size > 0 ? `
                         <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            <p class="text-sm text-slate-600 font-semibold mb-2">NID Numbers (${uniqueNIDs.size})</p>
+                            <p class="text-sm text-slate-600 font-semibold mb-2">${FC.t('profile.nids', { n: uniqueNIDs.size })}</p>
                             <div class="space-y-2">
                                 ${Array.from(uniqueNIDs).map(nid => `<p class="text-slate-800 bg-white p-2 rounded border border-slate-200 text-sm">${FC.escapeHtml(nid)}</p>`).join('')}
                             </div>
@@ -200,22 +202,22 @@
 
                 let profileHTML = `
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Full Name</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">${FC.t('profile.full_name')}</p>
                         <p class="text-slate-900 font-bold text-lg">${FC.escapeHtml(displayName)}</p>
                     </div>`;
                 if (nickname) profileHTML += `
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Nickname / Pseudonym</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">${FC.t('profile.nickname')}</p>
                         <p class="text-slate-900 text-lg">${FC.escapeHtml(nickname)}</p>
                     </div>`;
                 if (address) profileHTML += `
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Known Address</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">${FC.t('profile.known_address')}</p>
                         <p class="text-slate-900 text-lg">${FC.escapeHtml(address)}</p>
                     </div>`;
                 if (social) profileHTML += `
                     <div>
-                        <p class="text-slate-600 text-sm font-semibold mb-2">Social Media</p>
+                        <p class="text-slate-600 text-sm font-semibold mb-2">${FC.t('profile.social')}</p>
                         ${FC.socialLink(social)}
                     </div>`;
                 document.getElementById('profile-details').innerHTML = profileHTML;
@@ -223,21 +225,21 @@
                 // Incident History (escaped)
                 const incidentsDiv = document.getElementById('incidents-container');
                 if (events.length === 0) {
-                    incidentsDiv.innerHTML = '<p class="text-slate-500">No public incidents are linked to this profile yet.</p>';
+                    incidentsDiv.innerHTML = `<p class="text-slate-500">${FC.t('profile.no_incidents')}</p>`;
                 } else {
                     incidentsDiv.innerHTML = events.map(e => `
                         <a href="/event-detail.html?id=${encodeURIComponent(e._id)}" class="block bg-slate-50 border border-slate-200 rounded-lg p-6 hover:border-red-500 hover:shadow-lg transition">
                             <div class="flex justify-between items-start mb-3">
                                 <div>
-                                    <h3 class="font-bold text-slate-900 text-lg">${FC.val(e.scam_type, 'Unknown Scam')}</h3>
+                                    <h3 class="font-bold text-slate-900 text-lg">${FC.val(e.scam_type, FC.t('card.unknown_scam'))}</h3>
                                     <p class="text-xs text-slate-500 mt-1">📅 ${FC.fmtDate(e.approved_at || e.submitted_at)}</p>
                                 </div>
                                 <span class="bg-red-100 text-red-700 text-xs px-3 py-1 rounded-full font-bold">${FC.money(e.loss_amount)}</span>
                             </div>
                             <p class="text-slate-700 text-sm mb-3 line-clamp-2">${FC.escapeHtml(e.description || '')}</p>
                             <div class="flex gap-4 text-xs text-slate-600">
-                                <span>📝 ${FC.val(e.loss_item, 'N/A')}</span>
-                                <span>📍 ${FC.val(e.scam_location, 'Location not provided')}</span>
+                                <span>📝 ${FC.val(e.loss_item, FC.t('common.na'))}</span>
+                                <span>📍 ${FC.val(e.scam_location, FC.t('card.location_na'))}</span>
                             </div>
                         </a>`).join('');
                 }
@@ -258,6 +260,7 @@
 
         // Load profile when page loads
         document.addEventListener('DOMContentLoaded', loadImposterProfile);
+        document.addEventListener('fc:langchange', () => { if (new URLSearchParams(window.location.search).get('id')) loadImposterProfile(); });
     </script>
 </body>
 </html>
