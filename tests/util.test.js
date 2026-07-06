@@ -4,7 +4,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const {
     STATUS, VISIBILITY,
-    normalize, str, escapeRegex, validPhone, paging, sanitizeEvent, validateSubmission
+    normalize, str, escapeRegex, validPhone, paging, sanitizeEvent, validateSubmission,
+    maskNid, phoneRisk, scoreEvidence, riskScore, extractFromText, sniffFamily, typeMatches,
+    normalizeWallet, capField
 } = require('../lib/util');
 
 test('normalize lowercases and strips punctuation/whitespace', () => {
@@ -47,6 +49,8 @@ test('paging clamps limit/skip and accepts a plain query object', () => {
     assert.deepStrictEqual(paging({}), { limit: 20, skip: 0 });
     assert.strictEqual(paging({ limit: '9999' }, 20, 100).limit, 100);
     assert.strictEqual(paging({ skip: '-3' }).skip, 0);
+    // deep-pagination skip is capped to bound collection walks
+    assert.strictEqual(paging({ skip: '99999999' }).skip, 100000);
     // also works with an Express-like req
     assert.deepStrictEqual(paging({ query: { limit: '7' } }), { limit: 7, skip: 0 });
 });
@@ -74,12 +78,112 @@ test('validateSubmission rejects missing/invalid fields and accepts a good one',
     const good = validateSubmission({
         imposter_name: 'A', imposter_phone: '01799999999', scam_type: 'E-Commerce',
         loss_item: 'Money', loss_amount: '1500', description: 'd'.repeat(40), reporter_name: 'r',
-        reporter_visibility: 'hidden', alt_phones: JSON.stringify(['01711111111'])
+        reporter_visibility: 'hidden', alt_phones: JSON.stringify(['01711111111']), consent: 'true'
     });
     assert.ok(!good.error);
     assert.strictEqual(good.value.loss_amount, 1500);
     assert.strictEqual(good.value.reporter_visibility, VISIBILITY.HIDDEN);
     assert.deepStrictEqual(good.value.alt_phones, ['01711111111']);
+    assert.strictEqual(good.value.reporter_consent, true);
+});
+
+test('validateSubmission requires the truthfulness consent', () => {
+    const base = {
+        imposter_name: 'A', imposter_phone: '01799999999', scam_type: 'E-Commerce',
+        loss_item: 'Money', loss_amount: '1500', description: 'd'.repeat(40), reporter_name: 'r'
+    };
+    assert.ok(validateSubmission(base).error, 'missing consent rejected');
+    assert.ok(!validateSubmission({ ...base, consent: 'true' }).error, 'with consent accepted');
+});
+
+test('validateSubmission caps field length and alt_phones count', () => {
+    const many = JSON.stringify(Array.from({ length: 50 }, () => '01711111111'));
+    const r = validateSubmission({
+        imposter_name: 'x'.repeat(500), imposter_phone: '01799999999', scam_type: 'E-Commerce',
+        loss_item: 'Money', loss_amount: '1', description: 'd'.repeat(40), reporter_name: 'r',
+        consent: 'true', alt_phones: many
+    });
+    assert.ok(!r.error);
+    assert.strictEqual(r.value.imposter_name.length, 120);
+    assert.strictEqual(r.value.alt_phones.length, 10);
+});
+
+test('validateSubmission accepts MFS money-trail fields', () => {
+    const r = validateSubmission({
+        imposter_name: 'A', imposter_phone: '01799999999', scam_type: 'Mobile Banking',
+        loss_item: 'Money', loss_amount: '5000', description: 'd'.repeat(40), reporter_name: 'r',
+        consent: 'true', mfs_provider: 'bKash', mfs_wallet: '01711111111', mfs_trxid: 'AB12CD34EF'
+    });
+    assert.ok(!r.error);
+    assert.strictEqual(r.value.mfs_provider, 'bKash');
+    assert.strictEqual(r.value.mfs_trxid, 'AB12CD34EF');
+    // unknown provider is dropped, invalid wallet rejected
+    assert.strictEqual(validateSubmission({ ...r.value, mfs_provider: 'FakePay', loss_amount: '1', consent: 'true', alt_phones: undefined }).value.mfs_provider, '');
+});
+
+test('sanitizeEvent masks the national ID for public clients', () => {
+    const pub = sanitizeEvent({ imposter_nid: '1990123456789', reporter_visibility: VISIBILITY.PUBLIC });
+    assert.strictEqual(pub.imposter_nid, '••••••6789');
+    assert.strictEqual(sanitizeEvent({ imposter_nid: '', reporter_visibility: VISIBILITY.PUBLIC }).imposter_nid, '');
+});
+
+test('maskNid keeps only the last four digits', () => {
+    assert.strictEqual(maskNid('1990123456789'), '••••••6789');
+    assert.strictEqual(maskNid('12'), '••••');
+    assert.strictEqual(maskNid(''), '');
+});
+
+test('phoneRisk flags foreign and non-standard numbers', () => {
+    assert.strictEqual(phoneRisk('+8801711111111').level, 'low');
+    assert.strictEqual(phoneRisk('01711111111').operator, 'Grameenphone');
+    assert.strictEqual(phoneRisk('+923001234567').level, 'high');
+    assert.strictEqual(phoneRisk('12345').level, 'caution');
+});
+
+test('normalizeWallet canonicalizes to local 11-digit form', () => {
+    assert.strictEqual(normalizeWallet('+8801711111111'), '01711111111');
+    assert.strictEqual(normalizeWallet('01711111111'), '01711111111');
+    assert.strictEqual(normalizeWallet('880-17-1111-1111'), '01711111111');
+});
+
+test('scoreEvidence rewards richer evidence', () => {
+    const weak = scoreEvidence({ description: 'd'.repeat(30) });
+    const strong = scoreEvidence({
+        description: 'd'.repeat(220), gd_number: 'GD1', imposter_nid: '123', imposter_picture: {},
+        scam_proofs: [1, 2, 3], reporter_phone: '01711111111', imposter_phone: '01711111111', mfs_wallet: '01711111111'
+    });
+    assert.ok(strong > weak);
+    assert.ok(strong <= 100 && weak >= 0);
+});
+
+test('riskScore returns a band and handles the empty case', () => {
+    assert.deepStrictEqual(riskScore({ reportCount: 0 }), { score: 0, band: 'none' });
+    assert.strictEqual(riskScore({ reportCount: 10, distinctReporters: 5, recencyDays: 5, totalLoss: 200000 }).band, 'high');
+    assert.ok(['low', 'medium'].includes(riskScore({ reportCount: 1, distinctReporters: 1 }).band));
+});
+
+test('extractFromText pulls phones, trxids, urls and amounts', () => {
+    const out = extractFromText('Send money to 01711111111, TrxID AB12CD34EF, pay ৳5000 at http://scam.example/pay');
+    assert.ok(out.phones.includes('01711111111'));
+    assert.ok(out.trxids.includes('AB12CD34EF'));
+    assert.ok(out.urls.some((u) => u.includes('scam.example')));
+    assert.ok(out.amounts.length >= 1);
+});
+
+test('sniffFamily + typeMatches detect and gate spoofed uploads', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const pdf = Buffer.from('%PDF-1.7\n', 'ascii');
+    const html = Buffer.from('<html><script>alert(1)</script>', 'ascii');
+    assert.strictEqual(sniffFamily(png), 'png');
+    assert.strictEqual(sniffFamily(pdf), 'pdf');
+    assert.ok(typeMatches('image/png', sniffFamily(png)));
+    assert.ok(!typeMatches('image/png', sniffFamily(pdf)), 'pdf bytes rejected as png');
+    assert.ok(!typeMatches('image/png', sniffFamily(html)), 'html spoofed as png rejected');
+});
+
+test('capField trims and truncates to the configured maximum', () => {
+    assert.strictEqual(capField('  hi  ', 'imposter_name'), 'hi');
+    assert.strictEqual(capField('x'.repeat(500), 'imposter_nickname').length, 80);
 });
 
 test('STATUS enum has the expected values', () => {

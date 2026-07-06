@@ -103,15 +103,18 @@
         </div>
 
         <!-- No Search Message -->
-        <div id="no-search-message" class="text-center py-12">
+        <div id="no-search-message" class="text-center py-8">
             <div class="text-6xl mb-4">🔍</div>
             <h3 class="text-2xl font-bold text-slate-900 mb-2" data-i18n="index.nosearch.title">Start Searching to Find Fraud Information</h3>
             <p class="text-slate-600 mb-6" data-i18n="index.nosearch.body">Use the search box above to look for known scammers and fraudsters in our verified database.</p>
-            <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 max-w-md mx-auto">
-                <p class="text-sm text-slate-700"><strong data-i18n="index.nosearch.q">Haven't found what you're looking for?</strong></p>
-                <p class="text-sm text-slate-600 mt-2" data-i18n="index.nosearch.help">If you know of a scammer not in our database, report them now and help others stay safe.</p>
-                <a href="/submit.html" class="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition" data-i18n="index.nosearch.button">Add an Incident Report</a>
-            </div>
+            <p class="text-xs text-slate-500 max-w-xl mx-auto" data-i18n="common.allegation">⚠️ Reports are community allegations pending verification — not proven facts.</p>
+        </div>
+
+        <!-- Recently reported (browse feed) -->
+        <div id="recent-section" class="mt-4">
+            <h3 class="text-xl font-bold text-slate-900 mb-1" data-i18n="index.recent.title">Recently reported</h3>
+            <p class="text-sm text-slate-500 mb-4" data-i18n="index.recent.sub">Latest approved community fraud reports</p>
+            <div id="recent-list" class="grid gap-6"></div>
         </div>
 
         <!-- No Results Message -->
@@ -241,18 +244,35 @@
             currentSkip = 0;
             document.getElementById('results').innerHTML = '';
             document.getElementById('search-verdict').classList.add('hidden');
+            var rs = document.getElementById('recent-section'); if (rs) rs.classList.add('hidden');
             await loadResults(false);
         }
 
-        function updateVerdict(mode, total) {
+        // Load the "recently reported" browse feed on the landing page.
+        async function loadRecent() {
+            try {
+                const list = await (await fetch('/api/recent?limit=6')).json();
+                if (!Array.isArray(list) || !list.length) { document.getElementById('recent-section').classList.add('hidden'); return; }
+                document.getElementById('recent-list').innerHTML = list.map(renderCard).join('');
+            } catch (e) { /* non-fatal */ }
+        }
+
+        async function updateVerdict(mode, total) {
             const v = document.getElementById('search-verdict');
             if (mode !== 'phone') { v.classList.add('hidden'); return; }
+            // Enrich the phone verdict with the intrinsic number risk + aggregate score.
+            let extra = '';
+            try {
+                const d = await (await fetch('/api/check?phone=' + encodeURIComponent(currentQuery))).json();
+                if (d && d.phone_risk && d.phone_risk.level === 'high') extra += '<div class="mt-2 text-xs">' + FC.escapeHtml(FC.t('index.risk.foreign')) + '</div>';
+                if (d && d.risk && d.risk.band !== 'none') extra += '<div class="mt-2">' + FC.riskBadge(d.risk) + '</div>';
+            } catch (e) { /* non-fatal */ }
             if (total > 0) {
                 v.className = 'max-w-3xl mx-auto mb-6 p-4 rounded-xl text-sm font-semibold border text-center bg-red-50 border-red-200 text-red-700';
-                v.textContent = FC.t('verdict.has', { n: total });
+                v.innerHTML = FC.escapeHtml(FC.t('verdict.has', { n: total })) + extra;
             } else {
                 v.className = 'max-w-3xl mx-auto mb-6 p-4 rounded-xl text-sm font-semibold border text-center bg-green-50 border-green-200 text-green-700';
-                v.textContent = FC.t('verdict.none');
+                v.innerHTML = FC.escapeHtml(FC.t('verdict.none')) + extra;
             }
             v.classList.remove('hidden');
         }
@@ -395,11 +415,12 @@
             } catch (e) { /* non-fatal */ }
         }
         loadPublicStats();
+        loadRecent();
 
         // Re-render dynamic content when the language changes
         document.addEventListener('fc:langchange', () => {
             loadPublicStats();
-            if (currentQuery) performSearch();
+            if (currentQuery) performSearch(); else loadRecent();
         });
     </script>
 </body>

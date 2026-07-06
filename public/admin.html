@@ -37,6 +37,7 @@
                 </div>
                 <div class="flex items-center gap-3">
                     <button id="lang-toggle-2" onclick="FC.toggleLang()" class="border border-slate-600 text-slate-300 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm font-semibold transition">English</button>
+                    <button onclick="openChangePassword()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-semibold transition" data-i18n="admin.change_pw">Change Password</button>
                     <button onclick="logout()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-semibold transition" data-i18n="admin.logout">Logout</button>
                 </div>
             </div>
@@ -95,6 +96,7 @@
                 <div class="mb-4">
                     <h2 class="text-xl font-bold text-white mb-2" data-i18n="admin.pending.title">Pending Fraud Events</h2>
                     <p class="text-sm text-slate-400" data-i18n="admin.pending.sub">Events awaiting administrative review and approval</p>
+                    <button id="evidence-sort-btn" onclick="toggleEvidenceSort()" class="mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700 transition" data-i18n="admin.sort.evidence">⚠ Sort: weakest evidence first</button>
                 </div>
                 <div id="pending-bulk" class="hidden mb-4 flex flex-wrap items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-3">
                     <span id="pending-selected" class="text-sm text-slate-300">0 selected</span>
@@ -168,6 +170,21 @@
                     </div>
                 </div>
                 <div id="admins-list" class="grid gap-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="pw-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="Change password">
+            <h2 class="text-xl font-bold text-white mb-4" data-i18n="admin.pw.title">Change your password</h2>
+            <div class="space-y-3">
+                <input type="password" id="pw-current" data-i18n-ph="admin.pw.current" placeholder="Current password" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+                <input type="password" id="pw-new" data-i18n-ph="admin.pw.new" placeholder="New password (min 8)" class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-red-500">
+            </div>
+            <div class="flex justify-end gap-2 mt-5">
+                <button onclick="closeChangePassword()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold transition" data-i18n="common.cancel">Cancel</button>
+                <button onclick="submitChangePassword()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold transition" data-i18n="admin.pw.save">Change password</button>
             </div>
         </div>
     </div>
@@ -250,6 +267,10 @@
                 document.getElementById('admin-block').classList.remove('hidden');
                 loadList('live', false); // lazy: load only the visible tab; others load when opened
                 loadStats();
+                if (data.must_change_password) {
+                    FC.toast(FC.t('admin.pw.must_change'), 'info');
+                    openChangePassword();
+                }
             } else {
                 FC.toast((data && data.error) || FC.t('admin.toast.invalid_creds'), 'error');
             }
@@ -260,6 +281,29 @@
             document.getElementById('admin-block').classList.add('hidden');
             document.getElementById('login-block').classList.remove('hidden');
             location.reload();
+        }
+
+        // ---- self-service change password ----
+        function openChangePassword() { document.getElementById('pw-modal').classList.remove('hidden'); document.getElementById('pw-current').focus(); }
+        function closeChangePassword() {
+            document.getElementById('pw-modal').classList.add('hidden');
+            document.getElementById('pw-current').value = '';
+            document.getElementById('pw-new').value = '';
+        }
+        async function submitChangePassword() {
+            const current_password = document.getElementById('pw-current').value;
+            const new_password = document.getElementById('pw-new').value;
+            if (!current_password || !new_password) { FC.toast(FC.t('admin.pw.required'), 'error'); return; }
+            const data = await api('/api/admin/change-password', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ current_password, new_password })
+            });
+            if (!data) return;
+            if (data.error) { FC.toast(data.error, 'error'); return; }
+            FC.toast(data.message || 'Password changed', 'success');
+            closeChangePassword();
+            // token_version was bumped server-side — force a fresh sign-in.
+            setTimeout(logout, 1200);
         }
 
         // Reload only the tabs that have already been opened (keeps counts fresh
@@ -296,7 +340,14 @@
             const cfg = LISTS[kind];
             const container = document.getElementById(cfg.container);
             if (!append) { listSkip[kind] = 0; container.innerHTML = skeletonCards(3); }
-            const items = await api(`${cfg.url}?limit=${PAGE}&skip=${listSkip[kind] || 0}`);
+            const params = new URLSearchParams({ limit: PAGE, skip: listSkip[kind] || 0 });
+            // Event lists support real server-side search over the whole collection.
+            if (cfg.status) {
+                const q = (document.getElementById('tab-search').value || '').trim();
+                if (q) params.set('q', q);
+                if (kind === 'pending' && pendingSortEvidence) params.set('sort', 'evidence');
+            }
+            const items = await api(`${cfg.url}?${params.toString()}`);
             if (items === null) { if (!append) container.innerHTML = ''; return; }
             loaded.add(kind);
             const list = Array.isArray(items) ? items : [];
@@ -341,11 +392,16 @@
             const sub = status === 'live' ? FC.t('admin.live_since', { t: FC.timeAgo(e.approved_at) })
                 : status === 'pending' ? FC.t('admin.submitted', { t: FC.fmtDateTime(e.submitted_at) })
                 : FC.t('admin.rejected_ago', { t: FC.timeAgo(e.rejected_at) });
+            // Evidence-quality badge (shown on pending cards to guide triage).
+            const es = typeof e.evidence_score === 'number' ? e.evidence_score : null;
+            const esBadge = (status === 'pending' && es !== null)
+                ? `<span class="text-xs px-2 py-0.5 rounded-full border ${es >= 60 ? 'bg-green-500/20 text-green-400 border-green-500/30' : es >= 30 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}">${FC.t('admin.evidence')}: ${es}/100</span>`
+                : '';
             const footer = status === 'deleted'
                 ? `<div class="text-xs text-red-500">${FC.t('admin.reason', { x: FC.val(e.rejection_reason, FC.t('admin.not_specified')) })}</div>`
                 : status === 'live'
                     ? `<div class="text-xs text-slate-500">${FC.t('admin.approved_at', { t: FC.fmtDateTime(e.approved_at) })}</div>`
-                    : `<div class="text-xs text-slate-500">${FC.t('admin.awaiting')}</div>`;
+                    : `<div class="flex items-center justify-between gap-2 text-xs text-slate-500">${FC.t('admin.awaiting')} ${esBadge}</div>`;
             return `
                 <div onclick="viewEventDetails('${FC.escapeHtml(e._id)}', '${status}')" class="bg-gradient-to-br ${c.wrap} border rounded-lg p-5 cursor-pointer transition shadow-lg">
                     ${status === 'pending' ? `<label class="flex items-center gap-2 mb-2 text-xs text-slate-400 w-max" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-check accent-green-500" data-id="${FC.escapeHtml(e._id)}" onclick="updateBulkBar()"> ${FC.t('admin.card.select')}</label>` : ''}
@@ -401,20 +457,21 @@
             if (!data.event) { FC.toast(FC.t('admin.toast.event_not_found'), 'error'); return; }
             const event = data.event;
             currentEventData = event;
-            const tokenQ = 'token=' + encodeURIComponent(token);
-            const picSrc = `/api/events/${encodeURIComponent(eventId)}/picture?${tokenQ}`;
+            // Admin media is fetched with the Authorization header (never a ?token= URL,
+            // which would leak into history/logs); see hydrateModalMedia() below.
+            const picSrc = `/api/events/${encodeURIComponent(eventId)}/picture`;
             const proofs = Array.isArray(event.scam_proofs) ? event.scam_proofs : [];
             const proofsHtml = proofs.length ? proofs.map((p, idx) => {
-                const url = `/api/events/${encodeURIComponent(eventId)}/proofs/${idx}?${tokenQ}`;
+                const url = `/api/events/${encodeURIComponent(eventId)}/proofs/${idx}`;
                 const name = FC.escapeHtml(p.name || ('Proof ' + (idx + 1)));
                 if ((p.mimetype || '').startsWith('image')) {
-                    return `<a href="${url}" target="_blank"><img src="${url}" alt="${name}" class="w-full h-28 object-cover rounded border border-slate-700"></a>`;
+                    return `<a href="#" data-media="${url}" class="block"><img data-media="${url}" alt="${name}" class="w-full h-28 object-cover rounded border border-slate-700"></a>`;
                 }
                 const icon = (p.mimetype || '').startsWith('video') ? '🎥' : '📄';
-                return `<div class="bg-slate-800 border border-slate-700 rounded p-2 text-center"><div class="text-2xl">${icon}</div><a href="${url}" class="text-xs text-blue-400 hover:underline break-all">${name}</a></div>`;
+                return `<div class="bg-slate-800 border border-slate-700 rounded p-2 text-center"><div class="text-2xl">${icon}</div><a href="#" data-media="${url}" class="text-xs text-blue-400 hover:underline break-all">${name}</a></div>`;
             }).join('') : '<p class="text-slate-400 text-sm">No proof files were attached.</p>';
             const photoHtml = event.imposter_picture
-                ? `<img src="${picSrc}" alt="Imposter" class="w-28 h-28 object-cover rounded-lg border border-slate-700" onerror="this.style.display='none'">`
+                ? `<img data-media="${picSrc}" alt="Imposter" class="w-28 h-28 object-cover rounded-lg border border-slate-700">`
                 : '<p class="text-slate-400 text-sm">No imposter photo uploaded.</p>';
             const altPhones = Array.isArray(event.alt_phones) && event.alt_phones.length
                 ? `<div class="col-span-2"><p class="text-slate-400 text-xs">${FC.t('admin.f.altphones')}</p><p class="text-slate-300 font-mono">${event.alt_phones.map(FC.escapeHtml).join(', ')}</p></div>` : '';
@@ -481,7 +538,31 @@
                 actions += editBtn + `<button onclick="approveEvent()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold text-white transition">${FC.t('admin.reapprove')}</button>`;
             }
             document.getElementById('modal-actions').innerHTML = actions;
+            hydrateModalMedia();
             document.getElementById('detail-modal').classList.remove('hidden');
+        }
+
+        // Fetch admin media with the Authorization header and turn it into a blob URL,
+        // so full-privilege tokens never appear in a URL. Images load eagerly; file
+        // links fetch on click.
+        async function fetchMediaBlob(url) {
+            const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+            if (!res.ok) throw new Error('media ' + res.status);
+            return URL.createObjectURL(await res.blob());
+        }
+        function hydrateModalMedia() {
+            const root = document.getElementById('modal-content');
+            root.querySelectorAll('img[data-media]').forEach(async (img) => {
+                try { img.src = await fetchMediaBlob(img.getAttribute('data-media')); }
+                catch (e) { img.style.display = 'none'; }
+            });
+            root.querySelectorAll('a[data-media]').forEach((a) => {
+                a.addEventListener('click', async (ev) => {
+                    ev.preventDefault();
+                    try { window.open(await fetchMediaBlob(a.getAttribute('data-media')), '_blank'); }
+                    catch (e) { FC.toast(FC.t('admin.toast.media_err'), 'error'); }
+                });
+            });
         }
 
         async function approveEvent() {
@@ -706,9 +787,43 @@
             reloadLoaded();
         }
 
-        document.getElementById('tab-search').addEventListener('input', filterActiveList);
+        function toggleEvidenceSort() {
+            pendingSortEvidence = !pendingSortEvidence;
+            const btn = document.getElementById('evidence-sort-btn');
+            btn.classList.toggle('bg-amber-600', pendingSortEvidence);
+            btn.classList.toggle('text-white', pendingSortEvidence);
+            loadList('pending', false);
+        }
+
+        // For event tabs the search box queries the whole collection server-side
+        // (debounced); for other tabs it filters the already-loaded rows client-side.
+        let pendingSortEvidence = false;
+        let searchDebounce = null;
+        document.getElementById('tab-search').addEventListener('input', function () {
+            const cfg = LISTS[activeTab];
+            if (cfg && cfg.status) {
+                clearTimeout(searchDebounce);
+                searchDebounce = setTimeout(() => loadList(activeTab, false), 300);
+            } else {
+                filterActiveList();
+            }
+        });
         document.getElementById('detail-modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
         FC.onEscape(closeModal);
+        FC.onEscape(closeChangePassword);
+        document.getElementById('pw-modal').addEventListener('click', function (e) { if (e.target === this) closeChangePassword(); });
+
+        // A11y: give the tab bar proper ARIA roles and wire panels to their tabs.
+        (function () {
+            const tabs = document.querySelectorAll('.tab-btn');
+            if (tabs.length && tabs[0].parentNode) tabs[0].parentNode.setAttribute('role', 'tablist');
+            tabs.forEach((b) => {
+                b.setAttribute('role', 'tab');
+                b.setAttribute('aria-selected', b.classList.contains('active') ? 'true' : 'false');
+                b.setAttribute('aria-controls', b.getAttribute('data-tab') + '-tab');
+            });
+            document.querySelectorAll('.tab-content').forEach((p) => p.setAttribute('role', 'tabpanel'));
+        })();
 
         // Re-render dynamic content when the language is switched.
         document.addEventListener('fc:langchange', () => {

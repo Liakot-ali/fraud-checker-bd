@@ -24,16 +24,22 @@
     return escapeHtml(v);
   }
 
+  // Pick a locale from the active UI language so Bengali users see Bengali
+  // month names and numerals (falls back to en-US before i18n loads).
+  function loc() {
+    try { return (global.FC && global.FC.lang === 'bn') ? 'bn-BD' : 'en-US'; } catch (e) { return 'en-US'; }
+  }
+
   function fmtDate(d) {
     if (!d) return EMPTY;
     var dt = new Date(d);
-    return isNaN(dt.getTime()) ? EMPTY : dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    return isNaN(dt.getTime()) ? EMPTY : dt.toLocaleDateString(loc(), { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
   function fmtDateTime(d) {
     if (!d) return EMPTY;
     var dt = new Date(d);
-    return isNaN(dt.getTime()) ? EMPTY : dt.toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return isNaN(dt.getTime()) ? EMPTY : dt.toLocaleString(loc(), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   // Human "x days ago" — always grammatical (fixes the old "Today ago" bug).
@@ -113,6 +119,50 @@
     });
   }
 
+  // Extract structured tokens from pasted scam text (mirror of lib/util.js so the
+  // browser can pre-fill the report form without a round-trip).
+  function extractFromText(text) {
+    var t = String(text == null ? '' : text);
+    var uniq = function (a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); };
+    var phones = uniq((t.match(/(?:\+?880|0)1[3-9]\d{8}/g) || []).map(function (p) { return p.replace(/^(\+?880)/, '0'); }));
+    var trxids = uniq((t.match(/\b[A-Z0-9]{10}\b/g) || []).filter(function (x) { return /[A-Z]/.test(x) && /[0-9]/.test(x); }));
+    var urls = uniq(t.match(/https?:\/\/[^\s<>"')]+/gi) || []);
+    var amounts = uniq((t.match(/(?:৳|Tk\.?|BDT|taka)\s*[\d,]+(?:\.\d+)?/gi) || [])
+      .concat(t.match(/[\d,]+(?:\.\d+)?\s*(?:৳|tk|taka)/gi) || []));
+    return { phones: phones, trxids: trxids, urls: urls, amounts: amounts };
+  }
+
+  // A coloured risk badge (from /api/check `risk` { score, band }).
+  function riskBadge(risk) {
+    if (!risk || risk.band === 'none') return '';
+    var map = {
+      high: ['#dc2626', '#fef2f2', '#fecaca'],
+      medium: ['#d97706', '#fffbeb', '#fed7aa'],
+      low: ['#2563eb', '#eff6ff', '#bfdbfe']
+    };
+    var c = map[risk.band] || map.low;
+    return '<span style="display:inline-block;font-weight:700;font-size:.8rem;padding:.15rem .6rem;border-radius:9999px;color:' +
+      c[0] + ';background:' + c[1] + ';border:1px solid ' + c[2] + '">' +
+      escapeHtml((risk.band || '').toUpperCase()) + ' risk · ' + escapeHtml(String(risk.score)) + '/100</span>';
+  }
+
+  // Build share links (pre-filled Bengali warning) for a report/number.
+  function shareLinks(url, message) {
+    var enc = encodeURIComponent(message + ' ' + url);
+    return {
+      whatsapp: 'https://wa.me/?text=' + enc,
+      facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url),
+      messenger: 'https://www.facebook.com/dialog/send?link=' + encodeURIComponent(url) + '&app_id=0&redirect_uri=' + encodeURIComponent(url)
+    };
+  }
+
+  // Trigger the native share sheet, falling back to clipboard.
+  function nativeShare(title, text, url) {
+    if (navigator.share) { navigator.share({ title: title, text: text, url: url }).catch(function () {}); return true; }
+    try { navigator.clipboard && navigator.clipboard.writeText(url); toast('Link copied', 'success'); } catch (e) {}
+    return false;
+  }
+
   global.FC = {
     EMPTY: EMPTY,
     escapeHtml: escapeHtml,
@@ -126,6 +176,10 @@
     truncate: truncate,
     highlight: highlight,
     toast: toast,
-    onEscape: onEscape
+    onEscape: onEscape,
+    extractFromText: extractFromText,
+    riskBadge: riskBadge,
+    shareLinks: shareLinks,
+    nativeShare: nativeShare
   };
 })(window);

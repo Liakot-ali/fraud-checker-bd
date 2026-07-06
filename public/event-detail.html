@@ -34,6 +34,20 @@
         </div>
 
         <div id="content" class="hidden space-y-6">
+            <!-- Allegation disclaimer -->
+            <div class="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl p-4 text-sm" role="note" data-i18n="common.allegation">⚠️ Community allegation — reported by a user and pending independent verification.</div>
+
+            <!-- Golden-hour money-freeze recovery panel (shown for money-loss reports) -->
+            <div id="golden-panel" class="hidden bg-red-600 text-white rounded-xl p-5 shadow-lg">
+                <h3 class="font-bold text-lg mb-1" data-i18n="detail.golden.title">⏱️ Sent money just now? Act fast</h3>
+                <p class="text-red-100 text-sm mb-3" data-i18n="detail.golden.body">MFS transfers can sometimes be frozen if you contact the provider immediately.</p>
+                <div class="flex flex-wrap gap-2 text-sm font-semibold">
+                    <span class="bg-white/20 rounded-lg px-3 py-1" data-i18n="detail.golden.bkash">bKash: 16247</span>
+                    <span class="bg-white/20 rounded-lg px-3 py-1" data-i18n="detail.golden.nagad">Nagad: 16167</span>
+                    <span class="bg-white/20 rounded-lg px-3 py-1" data-i18n="detail.golden.police">Police: 999</span>
+                </div>
+            </div>
+
             <!-- Event Header -->
             <div class="bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-2xl p-8 shadow-lg">
                 <div class="flex items-center gap-6 mb-4">
@@ -76,6 +90,9 @@
                     <p class="text-xs text-slate-500 font-semibold mt-1" data-i18n="detail.trust.last">Most recent report</p>
                 </div>
             </div>
+
+            <!-- Aggregate risk badge -->
+            <div id="risk-badge-wrap" class="hidden text-center"></div>
 
             <!-- Fraud Details Section -->
             <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
@@ -162,9 +179,14 @@
             <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
                 <h3 class="font-bold text-slate-900 mb-3" data-i18n="detail.share">🔗 Share This Report</h3>
                 <p class="text-slate-600 text-sm mb-3" data-i18n="detail.share_body">Help others stay safe by sharing this fraud report:</p>
-                <div class="flex gap-2">
+                <div class="flex gap-2 mb-3">
                     <input type="text" id="share-link" readonly class="flex-1 px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm font-mono" value="">
                     <button onclick="copyShareLink()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition" data-i18n="detail.copy">Copy Link</button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="shareTo('whatsapp')" class="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition text-sm">🟢 <span data-i18n="detail.share.wa">WhatsApp</span></button>
+                    <button onclick="shareTo('facebook')" class="bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 transition text-sm">🔵 <span data-i18n="detail.share.fb">Facebook</span></button>
+                    <button onclick="shareTo('native')" class="bg-slate-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-800 transition text-sm">🔗 <span data-i18n="detail.share.native">Share</span></button>
                 </div>
             </div>
 
@@ -267,6 +289,18 @@
                     document.getElementById('trust-count').textContent = data.trust.report_count;
                     document.getElementById('trust-first').textContent = FC.fmtDate(data.trust.first_seen);
                     document.getElementById('trust-last').textContent = FC.fmtDate(data.trust.last_seen);
+                    // Aggregate risk badge
+                    const badge = FC.riskBadge(data.trust.risk);
+                    if (badge) {
+                        const w = document.getElementById('risk-badge-wrap');
+                        w.innerHTML = '<span class="text-xs text-slate-500 mr-2">' + FC.escapeHtml(FC.t('detail.risk')) + ':</span>' + badge;
+                        w.classList.remove('hidden');
+                    }
+                }
+
+                // Golden-hour recovery panel — show for money-loss / MFS reports.
+                if ((event.loss_amount || 0) > 0 || event.mfs_wallet || event.loss_item === 'Money') {
+                    document.getElementById('golden-panel').classList.remove('hidden');
                 }
 
                 // Fraud details
@@ -365,6 +399,15 @@
             } catch (e) {
                 FC.toast(FC.t('toast.copy_fail'), 'error');
             }
+        }
+
+        // One-tap share to WhatsApp / Facebook / native share sheet.
+        function shareTo(where) {
+            const url = document.getElementById('share-link').value || window.location.href;
+            const msg = FC.t('detail.share.msg');
+            if (where === 'native') { FC.nativeShare('Fraud-Checker-BD', msg, url); return; }
+            const links = FC.shareLinks(url, msg);
+            window.open(links[where], '_blank', 'noopener');
         }
 
         function openImageModal(src) {

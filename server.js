@@ -11,7 +11,9 @@ require('dotenv').config();
 const {
     STATUS, VISIBILITY, ROLES,
     ALLOWED_IMAGE, ALLOWED_PROOF, MAX_PROOFS,
-    normalize, str, escapeRegex, validPhone, paging, sanitizeEvent, validateSubmission
+    normalize, str, capField, escapeRegex, validPhone, normalizeWallet, maskNid,
+    phoneRisk, scoreEvidence, riskScore, sniffFamily, typeMatches,
+    paging, sanitizeEvent, validateSubmission
 } = require('./lib/util');
 
 // Minimal structured (JSON-line) logger — no sensitive payloads, no stack traces
@@ -25,11 +27,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.DB_NAME || 'fraud_checker_db';
+const IS_PROD = process.env.NODE_ENV === 'production';
+// Canonical public origin for sitemap/OG/canonical URLs (never trust the Host header).
+const BASE_URL = (process.env.BASE_URL || '').replace(/\/+$/, '');
+// Seed credentials for the first admin (never hard-code the password in production).
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
-// JWT secret — must be set in production. Fall back to an ephemeral random one
-// (sessions won't survive a restart) with a loud warning.
+// JWT secret — must be set in production. In development, fall back to an ephemeral
+// random one (sessions won't survive a restart) with a loud warning.
 let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
+    if (IS_PROD) {
+        console.error('✗ JWT_SECRET is not set. Refusing to start in production. Generate one with: openssl rand -hex 48');
+        process.exit(1);
+    }
     JWT_SECRET = crypto.randomBytes(48).toString('hex');
     console.warn('⚠ JWT_SECRET not set in .env — using an ephemeral secret (admin sessions reset on restart).');
 }
@@ -37,6 +49,17 @@ if (!JWT_SECRET) {
 if (!MONGODB_URI) {
     console.error('✗ MONGODB_URI is not set in .env. Aborting.');
     process.exit(1);
+}
+
+// Trust the first proxy hop so req.ip / rate-limit keys reflect the real client
+// behind a reverse proxy (without this, all clients share the proxy IP).
+app.set('trust proxy', 1);
+
+// Resolve the public base URL for absolute links: prefer the configured BASE_URL,
+// fall back to the request Host only in development.
+function baseUrl(req) {
+    if (BASE_URL) return BASE_URL;
+    return `${req.protocol}://${req.get('host')}`;
 }
 
 let db = null;
@@ -68,9 +91,20 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
+// Small JSON/form bodies only — admin actions are tiny; large bodies are a DoS
+// vector (they are buffered in RAM). File uploads use multipart, handled below.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
+// Bounded multipart: cap per-file size AND file count, abort (don't silently
+// truncate) when a file is too big, so a flood of huge parts can't exhaust memory.
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+app.use(fileUpload({
+    limits: { fileSize: MAX_FILE_BYTES, files: MAX_PROOFS + 2 },
+    abortOnLimit: true,
+    responseOnLimit: 'A file exceeds the 10MB limit.',
+    safeFileNames: true,
+    preserveExtension: true
+}));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Lightweight request logging for anything that reaches the API (static assets
@@ -81,26 +115,46 @@ app.use((req, res, next) => {
     next();
 });
 
-// Liveness/readiness probe.
-app.get('/healthz', (req, res) => res.json({ status: db ? 'ok' : 'starting', uptime: Math.round(process.uptime()) }));
+// Liveness/readiness probe — actually pings MongoDB so it reports 'degraded'
+// during an outage instead of falsely reporting 'ok' whenever `db` is truthy.
+app.get('/healthz', async (req, res) => {
+    let dbOk = false;
+    try { if (db) { await db.command({ ping: 1 }); dbOk = true; } } catch (e) { dbOk = false; }
+    res.status(dbOk ? 200 : 503).json({
+        status: dbOk ? 'ok' : (db ? 'degraded' : 'starting'),
+        uptime: Math.round(process.uptime())
+    });
+});
 
 // ===================== Helpers (DB/JWT-bound; pure helpers live in lib/util) =====================
 
-// JWT helpers / auth middleware
+// JWT helpers / auth middleware. The token is only accepted from the
+// Authorization header — never a URL query string (query tokens leak into
+// browser history and proxy logs).
 function getToken(req) {
     const header = req.headers.authorization || '';
-    const fromHeader = header.replace(/^Bearer\s+/i, '');
-    return fromHeader || str(req.query.token);
+    return header.replace(/^Bearer\s+/i, '');
 }
 function verifyToken(req) {
     const token = getToken(req);
     if (!token) return null;
-    try { return jwt.verify(token, JWT_SECRET); } catch (e) { return null; }
+    try { return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }); } catch (e) { return null; }
 }
-function requireAdmin(req, res, next) {
+// Full admin check: verifies the signature AND re-checks the account against the
+// DB so a deleted/demoted admin (or one whose password changed) is revoked
+// immediately rather than staying valid until the 8h token expiry.
+async function requireAdmin(req, res, next) {
     const payload = verifyToken(req);
-    if (!payload) return res.status(401).json({ error: 'Authentication required' });
-    req.admin = payload;
+    if (!payload || !payload.sub) return res.status(401).json({ error: 'Authentication required' });
+    let admin;
+    try { admin = await db.collection('admin_users').findOne({ _id: new ObjectId(payload.sub) }); }
+    catch (e) { return res.status(401).json({ error: 'Authentication required' }); }
+    if (!admin) return res.status(401).json({ error: 'Session no longer valid' });
+    if ((admin.token_version || 0) !== (payload.tv || 0)) {
+        return res.status(401).json({ error: 'Session expired, please sign in again' });
+    }
+    // Use the CURRENT role/username from the DB, not whatever was baked into the token.
+    req.admin = { sub: admin._id.toString(), username: admin.username, role: admin.role || ROLES.ADMIN };
     next();
 }
 
@@ -118,11 +172,13 @@ async function audit(action, eventId, req, extra = {}) {
 }
 
 // Store one uploaded file in GridFS, returning a lightweight metadata record.
+// A SHA-256 of the bytes is kept for integrity / future dedup.
 function storeFile(file) {
     return new Promise((resolve, reject) => {
+        const sha256 = crypto.createHash('sha256').update(file.data).digest('hex');
         const stream = bucket.openUploadStream(file.name, {
             contentType: file.mimetype,
-            metadata: { size: file.size }
+            metadata: { size: file.size, sha256 }
         });
         const fileId = stream.id;
         stream.on('error', reject);
@@ -130,10 +186,19 @@ function storeFile(file) {
             name: file.name,
             mimetype: file.mimetype,
             size: file.size,
+            sha256,
             file_id: fileId
         }));
         stream.end(file.data);
     });
+}
+
+// Best-effort removal of already-stored GridFS files (used to clean up when a
+// submission fails partway, so uploads are never left orphaned).
+async function deleteFiles(records) {
+    for (const r of records || []) {
+        if (r && r.file_id) { try { await bucket.delete(r.file_id); } catch (e) { /* non-fatal */ } }
+    }
 }
 
 // Stream a media record (GridFS file_id OR legacy inline base64) to the response.
@@ -142,6 +207,9 @@ function streamMedia(res, media, inline) {
     const safeName = String(media.name || 'file').replace(/[^\w.\- ]/g, '_');
     res.set('Content-Type', type);
     res.set('Cache-Control', 'private, max-age=3600');
+    // Sandbox served uploads so even a spoofed/polyglot file cannot run scripts.
+    res.set('Content-Security-Policy', "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'");
+    res.set('X-Content-Type-Options', 'nosniff');
     // Never let browsers render uploads as active content (e.g. SVG/HTML XSS):
     // only images and PDFs are shown inline, everything else downloads.
     const canInline = /^image\/(jpeg|png|gif|webp)$/.test(type) || type === 'application/pdf';
@@ -160,24 +228,37 @@ function streamMedia(res, media, inline) {
 // ===================== DB init / migrations =====================
 
 async function connectToDatabase() {
-    try {
-        const client = new MongoClient(MONGODB_URI);
-        await client.connect();
-        console.log('✓ Connected to MongoDB Atlas');
-        db = client.db(DB_NAME);
-        bucket = new GridFSBucket(db, { bucketName: 'uploads' });
-        await initializeDatabase();
-
-        // Graceful shutdown
-        const shutdown = async () => { try { await client.close(); } catch (e) {} process.exit(0); };
-        process.on('SIGINT', shutdown);
-        process.on('SIGTERM', shutdown);
-
-        return client;
-    } catch (err) {
-        console.error('✗ MongoDB Connection Error:', err.message);
-        process.exit(1);
+    const client = new MongoClient(MONGODB_URI);
+    // Retry with backoff so a transient DB unavailability at boot (common with
+    // docker-compose start ordering) waits instead of crash-looping the container.
+    const maxAttempts = 10;
+    for (let attempt = 1; ; attempt++) {
+        try {
+            await client.connect();
+            break;
+        } catch (err) {
+            if (attempt >= maxAttempts) {
+                console.error(`✗ MongoDB connection failed after ${attempt} attempts:`, err.message);
+                process.exit(1);
+            }
+            const wait = Math.min(1000 * attempt, 8000);
+            console.warn(`⚠ MongoDB connect attempt ${attempt} failed (${err.message}); retrying in ${wait}ms…`);
+            await new Promise((r) => setTimeout(r, wait));
+        }
     }
+    console.log('✓ Connected to MongoDB Atlas');
+    db = client.db(DB_NAME);
+    bucket = new GridFSBucket(db, { bucketName: 'uploads' });
+    // Surface connection drops in logs (the driver auto-reconnects for later ops).
+    client.on('serverHeartbeatFailed', () => log('error', 'mongodb heartbeat failed'));
+    await initializeDatabase();
+
+    // Graceful shutdown
+    const shutdown = async () => { try { await client.close(); } catch (e) {} process.exit(0); };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    return client;
 }
 
 async function ensureCollections() {
@@ -199,6 +280,14 @@ async function ensureIndexes() {
     await fe.createIndex({ status: 1 });
     await fe.createIndex({ profile_id: 1 });
     await fe.createIndex({ submitted_at: -1 });
+    // Sort/lookup fields used by list + trust queries (avoids in-memory sorts/scans).
+    await fe.createIndex({ approved_at: -1 });
+    await fe.createIndex({ rejected_at: -1 });
+    await fe.createIndex({ loss_amount: -1 });
+    await fe.createIndex({ imposter_normalized_phone: 1 });
+    await fe.createIndex({ status: 1, evidence_score: 1 });
+    await fe.createIndex({ mfs_normalized_wallet: 1 });
+    await db.collection('audit_logs').createIndex({ at: -1 });
     await db.collection('identifiers').createIndex({ normalized_value: 1 });
     await db.collection('identifiers').createIndex({ profile_id: 1 });
     await db.collection('identifiers').createIndex({ identifier_type: 1 });
@@ -212,15 +301,25 @@ async function ensureIndexes() {
 
 async function seedAdmin() {
     const adminUsers = db.collection('admin_users');
-    const existing = await adminUsers.findOne({ username: 'admin' });
+    const existing = await adminUsers.findOne({ username: ADMIN_USERNAME });
     if (!existing) {
+        // In production, refuse to seed a guessable default password.
+        if (IS_PROD && !ADMIN_PASSWORD) {
+            console.error('✗ No admin exists and ADMIN_PASSWORD is not set. Set ADMIN_USERNAME/ADMIN_PASSWORD to seed the first admin.');
+            process.exit(1);
+        }
+        const initialPassword = ADMIN_PASSWORD || 'admin123';
         await adminUsers.insertOne({
-            username: 'admin',
-            password_hash: await bcrypt.hash('admin123', 10),
+            username: ADMIN_USERNAME,
+            password_hash: await bcrypt.hash(initialPassword, 10),
             role: ROLES.SUPERUSER,
+            token_version: 0,
+            must_change_password: !ADMIN_PASSWORD,
             created_at: new Date().toISOString()
         });
-        console.log('✓ Seeded admin user (admin/admin123 — change this!)');
+        console.log(ADMIN_PASSWORD
+            ? `✓ Seeded admin user "${ADMIN_USERNAME}" from ADMIN_PASSWORD`
+            : '✓ Seeded admin user (admin/admin123 — CHANGE THIS immediately via the admin panel!)');
         return;
     }
     const set = {};
@@ -234,7 +333,12 @@ async function seedAdmin() {
         set.role = ROLES.SUPERUSER;
         console.log('✓ Backfilled default admin role -> superuser');
     }
+    if (existing.token_version === undefined) set.token_version = 0;
     if (Object.keys(set).length) await adminUsers.updateOne({ _id: existing._id }, { $set: set });
+    // Warn loudly if the well-known default password still works.
+    if (await bcrypt.compare('admin123', existing.password_hash || set.password_hash || '')) {
+        console.warn('⚠ The default admin password (admin123) is still active — change it in the admin panel.');
+    }
 }
 
 async function migrateLegacyEvents() {
@@ -261,6 +365,9 @@ async function migrateLegacyEvents() {
 }
 
 async function seedSampleData() {
+    // Only seed demo data when explicitly requested — never pollute a real
+    // (empty) production database with a fake, already-approved sample record.
+    if (process.env.SEED_SAMPLE !== 'true') return;
     const profiles = db.collection('cheater_profiles');
     if (await profiles.countDocuments() > 0) return;
     const ts = new Date().toISOString();
@@ -310,8 +417,12 @@ async function resolveProfile(event, timestamp) {
     const phones = await db.collection('event_phones').find({ event_id: event._id }).toArray();
     const phoneNorms = phones.map(p => normalize(p.phone_number)).filter(Boolean);
     const nidNorm = event.imposter_nid ? normalize(event.imposter_nid) : null;
+    const walletNorm = event.mfs_wallet ? normalize(event.mfs_wallet) : null;
+    const bankNorm = event.bank_account ? normalize(event.bank_account) : null;
     const lookup = [...phoneNorms];
     if (nidNorm) lookup.push(nidNorm);
+    if (walletNorm) lookup.push(walletNorm);
+    if (bankNorm) lookup.push(bankNorm);
 
     let profileId = null;
     if (lookup.length) {
@@ -343,6 +454,16 @@ async function resolveProfile(event, timestamp) {
         update: { $setOnInsert: { profile_id: profileId, identifier_type: 'nid', identifier_value: event.imposter_nid, normalized_value: nidNorm, is_primary: true } },
         upsert: true
     } });
+    if (walletNorm) ops.push({ updateOne: {
+        filter: { profile_id: profileId, identifier_type: 'mfs_wallet', normalized_value: walletNorm },
+        update: { $setOnInsert: { profile_id: profileId, identifier_type: 'mfs_wallet', identifier_value: event.mfs_wallet, mfs_provider: event.mfs_provider || '', normalized_value: walletNorm, is_primary: true } },
+        upsert: true
+    } });
+    if (bankNorm) ops.push({ updateOne: {
+        filter: { profile_id: profileId, identifier_type: 'bank_account', normalized_value: bankNorm },
+        update: { $setOnInsert: { profile_id: profileId, identifier_type: 'bank_account', identifier_value: event.bank_account, normalized_value: bankNorm, is_primary: true } },
+        upsert: true
+    } });
     const nameNorm = normalize(event.imposter_name || '');
     if (nameNorm) ops.push({ updateOne: {
         filter: { profile_id: profileId, identifier_type: 'imposter_name', normalized_value: nameNorm },
@@ -363,15 +484,21 @@ const disputeLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
     message: { error: 'Too many disputes from this device. Please try again later.' }
 });
+// General limiter for public read endpoints (search/check/media/details) so they
+// can't be used for cheap DB/bandwidth exhaustion. Generous enough for real use.
+const readLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false,
+    message: { error: 'Too many requests. Please slow down and try again shortly.' }
+});
 
 // ===================== PUBLIC API =====================
 
 // GET /api/search?q=&category=&sort=&limit=&skip=
 // Returns an array of approved events; the total match count is in the
 // `X-Total-Count` header and the match strategy in `X-Search-Mode`.
-app.get('/api/search', async (req, res) => {
+app.get('/api/search', readLimiter, async (req, res) => {
     try {
-        const query = str(req.query.q).trim();
+        const query = str(req.query.q).trim().slice(0, 200);
         if (!query) return res.json([]);
         const { limit, skip } = paging(req, 30, 100);
         const fraudEvents = db.collection('fraud_events');
@@ -391,10 +518,18 @@ app.get('/api/search', async (req, res) => {
         if (looksLikePhone) {
             mode = 'phone';
             const nq = normalize(query);
+            // Anchored prefix match so the query can use the normalized_phone index
+            // instead of an unanchored substring scan of the whole collection.
             const phoneRows = await db.collection('event_phones')
-                .find({ normalized_phone: { $regex: escapeRegex(nq) } })
+                .find({ normalized_phone: { $regex: '^' + escapeRegex(nq) } })
                 .project({ event_id: 1 }).limit(2000).toArray();
-            filter._id = { $in: phoneRows.map(p => p.event_id) };
+            const ids = phoneRows.map(p => p.event_id);
+            // Also match the money trail: reports whose MFS wallet equals the number.
+            const walletMatches = await fraudEvents
+                .find({ status: STATUS.APPROVED, mfs_normalized_wallet: normalizeWallet(query) })
+                .project({ _id: 1 }).limit(2000).toArray();
+            for (const w of walletMatches) ids.push(w._id);
+            filter._id = { $in: ids };
         } else {
             filter.$text = { $search: query };
         }
@@ -424,25 +559,66 @@ app.get('/api/search', async (req, res) => {
     }
 });
 
+// GET /api/recent — latest approved reports for the browse/landing feed (so the
+// homepage shows value before the visitor types a query).
+app.get('/api/recent', readLimiter, async (req, res) => {
+    try {
+        const { limit } = paging(req, 6, 24);
+        const projection = { scam_proofs: 0, imposter_picture: 0, reporter_phone: 0, reporter_email: 0 };
+        const rows = await db.collection('fraud_events')
+            .find({ status: STATUS.APPROVED }, { projection }).sort({ approved_at: -1 }).limit(limit).toArray();
+        res.json(rows.map((e) => sanitizeEvent(e)));
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to load recent reports' });
+    }
+});
+
 // GET /api/check?phone=&nid= — quick public lookup of how many APPROVED reports
 // match a phone and/or NID (counts only, no personal data). Powers the submit
 // form's duplicate hint and can back a standalone "is this number reported?" check.
-app.get('/api/check', async (req, res) => {
+app.get('/api/check', readLimiter, async (req, res) => {
     try {
         const fraudEvents = db.collection('fraud_events');
-        const phone = str(req.query.phone).trim();
-        const nid = str(req.query.nid).trim();
-        const out = { phone_reports: 0, nid_reports: 0 };
+        const phone = str(req.query.phone).trim().slice(0, 40);
+        const nid = str(req.query.nid).trim().slice(0, 40);
+        const out = { phone_reports: 0, nid_reports: 0, wallet_reports: 0 };
+        let matchedIds = [];
         if (phone) {
             const nq = normalize(phone);
             if (nq) {
                 const ids = await db.collection('event_phones')
                     .find({ normalized_phone: nq }).project({ event_id: 1 }).toArray();
-                out.phone_reports = await fraudEvents.countDocuments({ status: STATUS.APPROVED, _id: { $in: ids.map((i) => i.event_id) } });
+                matchedIds = ids.map((i) => i.event_id);
+                out.phone_reports = await fraudEvents.countDocuments({ status: STATUS.APPROVED, _id: { $in: matchedIds } });
             }
+            // Money-trail: reports whose MFS wallet equals this number.
+            out.wallet_reports = await fraudEvents.countDocuments({ status: STATUS.APPROVED, mfs_normalized_wallet: normalizeWallet(phone) });
+            // Intrinsic risk of the number itself (independent of any reports).
+            out.phone_risk = phoneRisk(phone);
         }
         if (nid) {
             out.nid_reports = await fraudEvents.countDocuments({ status: STATUS.APPROVED, imposter_nid: nid });
+        }
+        // Aggregate risk score for the number (corroboration + recency + loss + disputes).
+        const totalReports = out.phone_reports + out.wallet_reports;
+        if (totalReports > 0 && (matchedIds.length || out.wallet_reports)) {
+            const agg = await fraudEvents.aggregate([
+                { $match: { status: STATUS.APPROVED, $or: [{ _id: { $in: matchedIds } }, { mfs_normalized_wallet: normalizeWallet(phone) }] } },
+                { $group: { _id: null, loss: { $sum: '$loss_amount' }, last: { $max: '$approved_at' },
+                    reporters: { $addToSet: { $ifNull: ['$reporter_phone', '$reporter_name'] } } } }
+            ]).toArray();
+            const a = agg[0] || {};
+            const recencyDays = a.last ? Math.floor((Date.now() - new Date(a.last).getTime()) / 86400000) : null;
+            const openDisputes = matchedIds.length
+                ? await db.collection('disputes').countDocuments({ event_id: { $in: matchedIds }, status: 'open' })
+                : 0;
+            out.risk = riskScore({
+                reportCount: totalReports,
+                distinctReporters: Array.isArray(a.reporters) ? a.reporters.filter(Boolean).length : 0,
+                totalLoss: a.loss || 0, recencyDays, openDisputes
+            });
+        } else {
+            out.risk = riskScore({ reportCount: 0 });
         }
         res.json(out);
     } catch (err) {
@@ -451,7 +627,7 @@ app.get('/api/check', async (req, res) => {
 });
 
 // GET /api/stats/public — non-sensitive numbers for the public transparency panel.
-app.get('/api/stats/public', async (req, res) => {
+app.get('/api/stats/public', readLimiter, async (req, res) => {
     try {
         const fe = db.collection('fraud_events');
         const since = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -482,10 +658,12 @@ app.get('/api/stats/public', async (req, res) => {
 app.post('/api/events/:id/dispute', disputeLimiter, async (req, res) => {
     try {
         const eventId = new ObjectId(req.params.id);
-        const event = await db.collection('fraud_events').findOne({ _id: eventId }, { projection: { _id: 1 } });
+        // Only approved (public) reports are disputable — pending/rejected IDs return
+        // the same 404 as nonexistent ones (no existence oracle).
+        const event = await db.collection('fraud_events').findOne({ _id: eventId, status: STATUS.APPROVED }, { projection: { _id: 1 } });
         if (!event) return res.status(404).json({ error: 'Report not found.' });
         const reason = str(req.body && req.body.reason).trim();
-        const contact = str(req.body && req.body.contact).trim();
+        const contact = str(req.body && req.body.contact).trim().slice(0, 200);
         if (reason.length < 20 || reason.length > 1000) {
             return res.status(400).json({ error: 'Please describe the dispute in 20–1000 characters.' });
         }
@@ -499,13 +677,17 @@ app.post('/api/events/:id/dispute', disputeLimiter, async (req, res) => {
 // GET /sitemap.xml — home, submit, and every approved report (SEO).
 app.get('/sitemap.xml', async (req, res) => {
     try {
-        const base = `${req.protocol}://${req.get('host')}`;
+        const base = baseUrl(req);
         const events = await db.collection('fraud_events')
             .find({ status: STATUS.APPROVED }, { projection: { _id: 1, approved_at: 1 } }).limit(5000).toArray();
+        const profiles = await db.collection('cheater_profiles')
+            .find({}, { projection: { _id: 1, updated_at: 1 } }).limit(5000).toArray();
         const urls = [
             `<url><loc>${base}/</loc></url>`,
             `<url><loc>${base}/submit.html</loc></url>`,
-            ...events.map((e) => `<url><loc>${base}/report/${e._id}</loc><lastmod>${(e.approved_at || '').slice(0, 10)}</lastmod></url>`)
+            `<url><loc>${base}/check.html</loc></url>`,
+            ...events.map((e) => `<url><loc>${base}/report/${e._id}</loc><lastmod>${(e.approved_at || '').slice(0, 10)}</lastmod></url>`),
+            ...profiles.map((p) => `<url><loc>${base}/profile/${p._id}</loc><lastmod>${(p.updated_at || '').slice(0, 10)}</lastmod></url>`)
         ];
         res.set('Content-Type', 'application/xml');
         res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`);
@@ -513,6 +695,26 @@ app.get('/sitemap.xml', async (req, res) => {
         res.status(500).end();
     }
 });
+
+// Small HTML-escape helper for server-rendered share pages.
+const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Render a server-side share/redirect page with real OG/meta + JSON-LD for
+// crawlers and social previews; humans are redirected to the interactive page.
+function renderShare(res, { title, desc, canonical, target, jsonLd }) {
+    res.set('Content-Type', 'text/html');
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escHtml(title)}</title>
+<meta name="description" content="${escHtml(desc)}">
+<meta property="og:title" content="${escHtml(title)}"><meta property="og:description" content="${escHtml(desc)}">
+<meta property="og:type" content="article"><meta property="og:url" content="${escHtml(canonical)}">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="${escHtml(canonical)}">
+${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ''}
+<meta http-equiv="refresh" content="0; url=${escHtml(target)}"></head>
+<body><p>Redirecting to the <a href="${escHtml(target)}">fraud report</a>…</p></body></html>`);
+}
 
 // GET /report/:id — server-rendered share page with real OG/meta for crawlers
 // and social previews; humans are redirected to the interactive detail page.
@@ -523,27 +725,75 @@ app.get('/report/:id', async (req, res) => {
             { projection: { imposter_name: 1, scam_type: 1, description: 1 } }
         );
         if (!event) return res.redirect('/');
-        const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        const title = `${esc(event.imposter_name || 'Fraud report')} — ${esc(event.scam_type || 'Scam')} | Fraud-Checker-BD`;
-        const desc = esc((event.description || 'A verified fraud report on Fraud-Checker-BD.').slice(0, 160));
+        const name = event.imposter_name || 'Fraud report';
+        const title = `${name} — ${event.scam_type || 'Scam'} (reported) | Fraud-Checker-BD`;
+        const desc = 'Community-reported fraud allegation (pending independent verification) on Fraud-Checker-BD. ' +
+            (event.description || '').slice(0, 140);
         const target = `/event-detail.html?id=${event._id}`;
-        const url = `${req.protocol}://${req.get('host')}${target}`;
-        res.set('Content-Type', 'text/html');
-        res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<title>${title}</title>
-<meta name="description" content="${desc}">
-<meta property="og:title" content="${title}"><meta property="og:description" content="${desc}">
-<meta property="og:type" content="article"><meta property="og:url" content="${esc(url)}">
-<link rel="canonical" href="${esc(url)}">
-<meta http-equiv="refresh" content="0; url=${target}"></head>
-<body><p>Redirecting to the <a href="${target}">fraud report</a>…</p></body></html>`);
+        const canonical = `${baseUrl(req)}${target}`;
+        renderShare(res, {
+            title, desc, canonical, target,
+            jsonLd: {
+                '@context': 'https://schema.org', '@type': 'Article', headline: title,
+                description: desc.slice(0, 200), url: canonical,
+                about: { '@type': 'Thing', name }
+            }
+        });
+    } catch (err) {
+        res.redirect('/');
+    }
+});
+
+// GET /number/:phone — crawlable canonical page for a reported number (Bangladeshis
+// routinely Google a number before paying COD). Redirects humans to a lookup.
+app.get('/number/:phone', async (req, res) => {
+    try {
+        const raw = str(req.params.phone).replace(/[^\d+]/g, '').slice(0, 20);
+        const nq = normalize(raw);
+        let count = 0;
+        if (nq) {
+            const ids = await db.collection('event_phones').find({ normalized_phone: { $regex: '^' + escapeRegex(nq) } }).project({ event_id: 1 }).limit(2000).toArray();
+            count = await db.collection('fraud_events').countDocuments({ status: STATUS.APPROVED, _id: { $in: ids.map((i) => i.event_id) } });
+        }
+        const title = count > 0
+            ? `${raw} — reported ${count} time(s) as a scam number | Fraud-Checker-BD`
+            : `${raw} — check this number for scam reports | Fraud-Checker-BD`;
+        const desc = count > 0
+            ? `The number ${raw} appears in ${count} community fraud report(s) (allegations, pending verification). Check before you pay.`
+            : `No fraud reports found for ${raw} yet on Fraud-Checker-BD. Search Bangladesh's community fraud database before you trust a number.`;
+        const target = `/?q=${encodeURIComponent(raw)}`;
+        const canonical = `${baseUrl(req)}/number/${encodeURIComponent(raw)}`;
+        renderShare(res, {
+            title, desc, canonical, target,
+            jsonLd: { '@context': 'https://schema.org', '@type': 'WebPage', name: title, description: desc.slice(0, 200), url: canonical }
+        });
+    } catch (err) {
+        res.redirect('/');
+    }
+});
+
+// GET /profile/:id — crawlable share bridge for a consolidated fraudster profile.
+app.get('/profile/:id', async (req, res) => {
+    try {
+        const profile = await db.collection('cheater_profiles').findOne({ _id: new ObjectId(req.params.id) });
+        if (!profile) return res.redirect('/');
+        const name = profile.display_name || 'Reported fraudster';
+        const count = await db.collection('fraud_events').countDocuments({ profile_id: profile._id, status: STATUS.APPROVED });
+        const title = `${name} — ${count} reported fraud incident(s) | Fraud-Checker-BD`;
+        const desc = `Consolidated community fraud reports for ${name} (allegations, pending verification). ${count} linked incident(s).`;
+        const target = `/imposter-profile.html?id=${profile._id}`;
+        const canonical = `${baseUrl(req)}${target}`;
+        renderShare(res, {
+            title, desc, canonical, target,
+            jsonLd: { '@context': 'https://schema.org', '@type': 'ProfilePage', name: title, description: desc.slice(0, 200), url: canonical }
+        });
     } catch (err) {
         res.redirect('/');
     }
 });
 
 // GET /api/events/:id/details
-app.get('/api/events/:id/details', async (req, res) => {
+app.get('/api/events/:id/details', readLimiter, async (req, res) => {
     try {
         const eventId = new ObjectId(req.params.id);
         const event = await db.collection('fraud_events').findOne(
@@ -557,13 +807,25 @@ app.get('/api/events/:id/details', async (req, res) => {
 
         // Trust signals: how many approved reports share this imposter's phone,
         // plus the first/last time it was reported.
-        const trust = { report_count: 1, first_seen: event.approved_at, last_seen: event.approved_at };
+        const trust = { report_count: 1, first_seen: event.approved_at, last_seen: event.approved_at, risk: riskScore({ reportCount: 1 }) };
         if (event.imposter_normalized_phone) {
             const agg = await db.collection('fraud_events').aggregate([
                 { $match: { status: STATUS.APPROVED, imposter_normalized_phone: event.imposter_normalized_phone } },
-                { $group: { _id: null, count: { $sum: 1 }, first: { $min: '$approved_at' }, last: { $max: '$approved_at' } } }
+                { $group: { _id: null, count: { $sum: 1 }, loss: { $sum: '$loss_amount' },
+                    first: { $min: '$approved_at' }, last: { $max: '$approved_at' },
+                    reporters: { $addToSet: { $ifNull: ['$reporter_phone', '$reporter_name'] } } } }
             ]).toArray();
-            if (agg[0]) { trust.report_count = agg[0].count; trust.first_seen = agg[0].first; trust.last_seen = agg[0].last; }
+            if (agg[0]) {
+                trust.report_count = agg[0].count;
+                trust.first_seen = agg[0].first;
+                trust.last_seen = agg[0].last;
+                const recencyDays = agg[0].last ? Math.floor((Date.now() - new Date(agg[0].last).getTime()) / 86400000) : null;
+                trust.risk = riskScore({
+                    reportCount: agg[0].count,
+                    distinctReporters: Array.isArray(agg[0].reporters) ? agg[0].reporters.filter(Boolean).length : 0,
+                    totalLoss: agg[0].loss || 0, recencyDays
+                });
+            }
         }
 
         res.json({ event: sanitizeEvent(event, { includeProofs: true }), profile, trust });
@@ -573,7 +835,7 @@ app.get('/api/events/:id/details', async (req, res) => {
 });
 
 // GET /api/events/:id/picture — public for approved events; admins may view any.
-app.get('/api/events/:id/picture', async (req, res) => {
+app.get('/api/events/:id/picture', readLimiter, async (req, res) => {
     try {
         const event = await db.collection('fraud_events').findOne(
             { _id: new ObjectId(req.params.id) },
@@ -588,7 +850,7 @@ app.get('/api/events/:id/picture', async (req, res) => {
 });
 
 // GET /api/events/:id/proofs/:index — public for approved events; admins may view any.
-app.get('/api/events/:id/proofs/:index', async (req, res) => {
+app.get('/api/events/:id/proofs/:index', readLimiter, async (req, res) => {
     try {
         const event = await db.collection('fraud_events').findOne(
             { _id: new ObjectId(req.params.id) },
@@ -605,7 +867,7 @@ app.get('/api/events/:id/proofs/:index', async (req, res) => {
 });
 
 // GET /api/profiles/:id
-app.get('/api/profiles/:id', async (req, res) => {
+app.get('/api/profiles/:id', readLimiter, async (req, res) => {
     try {
         const profileId = new ObjectId(req.params.id);
         const profile = await db.collection('cheater_profiles').findOne({ _id: profileId });
@@ -618,9 +880,13 @@ app.get('/api/profiles/:id', async (req, res) => {
 
         const idents = await db.collection('identifiers')
             .find({ profile_id: profileId })
-            .project({ identifier_type: 1, identifier_value: 1 }).toArray();
+            .project({ identifier_type: 1, identifier_value: 1, mfs_provider: 1 }).toArray();
+        // Never expose full NIDs publicly — mask to last 4 (same policy as sanitizeEvent).
+        const safeIdents = idents.map((i) => i.identifier_type === 'nid'
+            ? { ...i, identifier_value: maskNid(i.identifier_value) }
+            : i);
 
-        res.json({ profile, events: events.map(e => sanitizeEvent(e)), identifiers: idents });
+        res.json({ profile, events: events.map(e => sanitizeEvent(e)), identifiers: safeIdents });
     } catch (err) {
         res.status(404).json({ error: 'Profile not found' });
     }
@@ -640,10 +906,14 @@ app.post('/api/events', submitLimiter, async (req, res) => {
         if (error) return res.status(400).json({ error });
 
         // Validate ALL file types/counts BEFORE storing anything, so a bad proof
-        // never leaves an orphaned photo in GridFS.
+        // never leaves an orphaned photo in GridFS. Validation checks the DECLARED
+        // MIME *and* the actual magic bytes so a payload can't masquerade as an image.
         const picFile = (req.files && req.files.imposter_picture) || null;
-        if (picFile && !ALLOWED_IMAGE.includes(picFile.mimetype)) {
-            return res.status(400).json({ error: 'Imposter picture must be a JPEG, PNG, GIF, or WEBP image.' });
+        if (picFile) {
+            if (picFile.truncated) return res.status(400).json({ error: 'Imposter picture exceeds the 10MB limit.' });
+            if (!ALLOWED_IMAGE.includes(picFile.mimetype) || !typeMatches(picFile.mimetype, sniffFamily(picFile.data))) {
+                return res.status(400).json({ error: 'Imposter picture must be a genuine JPEG, PNG, GIF, or WEBP image.' });
+            }
         }
         let proofFiles = [];
         if (req.files && req.files.scam_proofs) {
@@ -652,56 +922,81 @@ app.post('/api/events', submitLimiter, async (req, res) => {
         if (proofFiles.length === 0) return res.status(400).json({ error: 'At least one proof file is required.' });
         if (proofFiles.length > MAX_PROOFS) return res.status(400).json({ error: `Maximum ${MAX_PROOFS} files allowed.` });
         for (const f of proofFiles) {
-            if (!ALLOWED_PROOF.includes(f.mimetype)) {
-                return res.status(400).json({ error: `Unsupported proof file type: ${f.name} (${f.mimetype}).` });
+            if (f.truncated) return res.status(400).json({ error: `Proof file too large (10MB max): ${f.name}` });
+            if (!ALLOWED_PROOF.includes(f.mimetype) || !typeMatches(f.mimetype, sniffFamily(f.data))) {
+                return res.status(400).json({ error: `Unsupported or mislabeled proof file: ${f.name} (${f.mimetype}).` });
             }
         }
 
-        const imposterPicture = picFile ? await storeFile(picFile) : null;
-        const scamProofs = [];
-        for (const f of proofFiles) scamProofs.push(await storeFile(f));
+        // Store files first, but clean them up if any later DB write fails (no orphans).
+        const stored = [];
+        let eventId;
+        try {
+            const imposterPicture = picFile ? await storeFile(picFile) : null;
+            if (imposterPicture) stored.push(imposterPicture);
+            const scamProofs = [];
+            for (const f of proofFiles) { const rec = await storeFile(f); stored.push(rec); scamProofs.push(rec); }
 
-        const timestamp = new Date().toISOString();
-        const fraudEvents = db.collection('fraud_events');
-        const eventPhones = db.collection('event_phones');
-        const identifiers = db.collection('identifiers');
+            const timestamp = new Date().toISOString();
+            const fraudEvents = db.collection('fraud_events');
+            const eventPhones = db.collection('event_phones');
 
-        const result = await fraudEvents.insertOne({
-            imposter_name: value.imposter_name,
-            imposter_phone: value.imposter_phone,
-            imposter_normalized_phone: normalize(value.imposter_phone),
-            imposter_nickname: value.imposter_nickname,
-            imposter_nid: value.imposter_nid,
-            imposter_address: value.imposter_address,
-            social_media_account: value.social_media_account,
-            imposter_picture: imposterPicture,
-            scam_type: value.scam_type,
-            loss_item: value.loss_item,
-            loss_amount: value.loss_amount,
-            description: value.description,
-            scam_location: value.scam_location,
-            gd_number: value.gd_number,
-            alt_phones: value.alt_phones,
-            scam_proofs: scamProofs,
-            reporter_name: value.reporter_name,
-            reporter_phone: value.reporter_phone,
-            reporter_email: value.reporter_email,
-            reporter_visibility: value.reporter_visibility,
-            profile_id: null,
-            status: STATUS.PENDING,
-            submitted_at: timestamp,
-            approved_at: null,
-            rejected_at: null
-        });
+            const evidenceScore = scoreEvidence({
+                scam_proofs: scamProofs, imposter_picture: imposterPicture, gd_number: value.gd_number,
+                imposter_nid: value.imposter_nid, description: value.description,
+                reporter_phone: value.reporter_phone, reporter_email: value.reporter_email,
+                mfs_wallet: value.mfs_wallet, bank_account: value.bank_account, imposter_phone: value.imposter_phone
+            });
 
-        const eventId = result.insertedId;
-        await eventPhones.insertOne({ event_id: eventId, phone_number: value.imposter_phone, normalized_phone: normalize(value.imposter_phone) });
-        for (const phone of value.alt_phones) {
-            await eventPhones.insertOne({ event_id: eventId, phone_number: phone, normalized_phone: normalize(phone) });
-        }
-        await identifiers.insertOne({ profile_id: null, identifier_type: 'imposter_name', identifier_value: value.imposter_name, normalized_value: normalize(value.imposter_name) });
-        if (value.imposter_nid) {
-            await identifiers.insertOne({ profile_id: null, identifier_type: 'nid', identifier_value: value.imposter_nid, normalized_value: normalize(value.imposter_nid) });
+            const result = await fraudEvents.insertOne({
+                imposter_name: value.imposter_name,
+                imposter_phone: value.imposter_phone,
+                imposter_normalized_phone: normalize(value.imposter_phone),
+                imposter_nickname: value.imposter_nickname,
+                imposter_nid: value.imposter_nid,
+                imposter_address: value.imposter_address,
+                social_media_account: value.social_media_account,
+                imposter_picture: imposterPicture,
+                scam_type: value.scam_type,
+                loss_item: value.loss_item,
+                loss_amount: value.loss_amount,
+                description: value.description,
+                scam_location: value.scam_location,
+                gd_number: value.gd_number,
+                alt_phones: value.alt_phones,
+                scam_proofs: scamProofs,
+                // Money-trail (MFS / bank) identifiers.
+                mfs_provider: value.mfs_provider,
+                mfs_wallet: value.mfs_wallet,
+                mfs_normalized_wallet: value.mfs_wallet ? normalizeWallet(value.mfs_wallet) : '',
+                mfs_trxid: value.mfs_trxid,
+                bank_account: value.bank_account,
+                reporter_name: value.reporter_name,
+                reporter_phone: value.reporter_phone,
+                reporter_email: value.reporter_email,
+                reporter_visibility: value.reporter_visibility,
+                reporter_consent: true,
+                evidence_score: evidenceScore,
+                profile_id: null,
+                status: STATUS.PENDING,
+                submitted_at: timestamp,
+                approved_at: null,
+                rejected_at: null
+            });
+
+            eventId = result.insertedId;
+            // Single round-trip for all phones (primary + alternates) — no N+1 loop.
+            const phoneDocs = [{ event_id: eventId, phone_number: value.imposter_phone, normalized_phone: normalize(value.imposter_phone) }];
+            for (const phone of value.alt_phones) {
+                phoneDocs.push({ event_id: eventId, phone_number: phone, normalized_phone: normalize(phone) });
+            }
+            await eventPhones.insertMany(phoneDocs);
+            // Note: profile-scoped identifiers are created at approval time by
+            // resolveProfile(); we no longer insert orphan profile_id:null rows here.
+        } catch (dbErr) {
+            await deleteFiles(stored);
+            if (eventId) { try { await db.collection('fraud_events').deleteOne({ _id: eventId }); } catch (e) {} }
+            throw dbErr;
         }
 
         res.json({ message: '✓ Fraud report submitted successfully! Your report will be reviewed by our team.', eventId });
@@ -732,21 +1027,48 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
         const token = jwt.sign(
-            { sub: admin._id.toString(), username: admin.username, role: admin.role || ROLES.ADMIN },
-            JWT_SECRET, { expiresIn: '8h' }
+            { sub: admin._id.toString(), username: admin.username, role: admin.role || ROLES.ADMIN, tv: admin.token_version || 0 },
+            JWT_SECRET, { algorithm: 'HS256', expiresIn: '8h' }
         );
-        res.json({ success: true, token });
+        await db.collection('audit_logs').insertOne({ action: 'login', admin: admin.username, at: new Date().toISOString() });
+        res.json({ success: true, token, must_change_password: !!admin.must_change_password });
     } catch (err) {
         res.status(500).json({ error: 'Login failed' });
     }
 });
 
+// Build a server-side filter for the admin event lists from query params:
+// q (free text), scam_type, min_loss, has_gd, has_photo. Lets moderators search
+// the WHOLE collection, not just the ~20 rows already loaded client-side.
+function adminEventFilter(req, baseFilter) {
+    const filter = { ...baseFilter };
+    const q = str(req.query.q).trim().slice(0, 100);
+    if (q) {
+        const rx = new RegExp(escapeRegex(q), 'i');
+        filter.$or = [
+            { imposter_name: rx }, { imposter_phone: rx }, { imposter_nid: rx }, { imposter_nickname: rx },
+            { scam_type: rx }, { scam_location: rx }, { description: rx }, { reporter_name: rx },
+            { mfs_wallet: rx }, { gd_number: rx }
+        ];
+    }
+    const scamType = str(req.query.scam_type).trim();
+    if (scamType) filter.scam_type = scamType;
+    const minLoss = parseFloat(req.query.min_loss);
+    if (isFinite(minLoss) && minLoss > 0) filter.loss_amount = { $gte: minLoss };
+    if (str(req.query.has_gd) === 'true') filter.gd_number = { $nin: ['', null] };
+    if (str(req.query.has_photo) === 'true') filter.imposter_picture = { $ne: null };
+    return filter;
+}
+
 // Everything below requires a valid admin session.
 app.get('/api/admin/moderation-queue', requireAdmin, async (req, res) => {
     try {
         const { limit, skip } = paging(req);
+        // Sort weakest-evidence first when requested, so thin/risky accusations get
+        // the hardest scrutiny; otherwise newest-first.
+        const sort = str(req.query.sort) === 'evidence' ? { evidence_score: 1, submitted_at: -1 } : { submitted_at: -1 };
         const events = await db.collection('fraud_events')
-            .find({ status: STATUS.PENDING }).sort({ submitted_at: -1 }).skip(skip).limit(limit).toArray();
+            .find(adminEventFilter(req, { status: STATUS.PENDING })).sort(sort).skip(skip).limit(limit).toArray();
         res.json(events);
     } catch (err) { res.status(500).json({ error: 'Failed to load queue' }); }
 });
@@ -755,7 +1077,7 @@ app.get('/api/admin/events/live', requireAdmin, async (req, res) => {
     try {
         const { limit, skip } = paging(req);
         const events = await db.collection('fraud_events')
-            .find({ status: STATUS.APPROVED }).sort({ approved_at: -1 }).skip(skip).limit(limit).toArray();
+            .find(adminEventFilter(req, { status: STATUS.APPROVED })).sort({ approved_at: -1 }).skip(skip).limit(limit).toArray();
         res.json(events);
     } catch (err) { res.status(500).json({ error: 'Failed to load live events' }); }
 });
@@ -764,7 +1086,7 @@ app.get('/api/admin/events/rejected', requireAdmin, async (req, res) => {
     try {
         const { limit, skip } = paging(req);
         const events = await db.collection('fraud_events')
-            .find({ status: STATUS.REJECTED }).sort({ rejected_at: -1 }).skip(skip).limit(limit).toArray();
+            .find(adminEventFilter(req, { status: STATUS.REJECTED })).sort({ rejected_at: -1 }).skip(skip).limit(limit).toArray();
         res.json(events);
     } catch (err) { res.status(500).json({ error: 'Failed to load rejected events' }); }
 });
@@ -799,10 +1121,10 @@ app.patch('/api/admin/events/:id/approve', requireAdmin, async (req, res) => {
         if (!event) return res.status(404).json({ error: 'Event not found' });
 
         const timestamp = new Date().toISOString();
-        await fraudEvents.updateOne({ _id: eventId }, { $set: { status: STATUS.APPROVED, approved_at: timestamp } });
-
+        // Resolve the profile FIRST, then flip status + set profile_id in a single
+        // write, so a failure can never leave an approved-but-unlinked event.
         const profileId = await resolveProfile(event, timestamp);
-        await fraudEvents.updateOne({ _id: eventId }, { $set: { profile_id: profileId } });
+        await fraudEvents.updateOne({ _id: eventId }, { $set: { status: STATUS.APPROVED, approved_at: timestamp, profile_id: profileId } });
         await audit('approve', eventId, req, { profile_id: profileId });
 
         res.json({ message: '✓ Event approved and linked to a fraudster profile.', profile_id: profileId });
@@ -981,7 +1303,7 @@ app.patch('/api/admin/events/:id', requireAdmin, async (req, res) => {
         const b = req.body || {};
         const set = {};
         const textFields = ['imposter_name', 'imposter_nickname', 'imposter_nid', 'imposter_address', 'social_media_account', 'scam_type', 'loss_item', 'scam_location', 'gd_number'];
-        for (const f of textFields) { if (typeof b[f] === 'string') set[f] = b[f].trim(); }
+        for (const f of textFields) { if (typeof b[f] === 'string') set[f] = capField(b[f], f); }
         if (typeof b.description === 'string') {
             if (b.description.length < 30 || b.description.length > 500) {
                 return res.status(400).json({ error: 'Description must be between 30 and 500 characters.' });
@@ -1006,6 +1328,14 @@ app.patch('/api/admin/events/:id', requireAdmin, async (req, res) => {
                 { $set: { phone_number: set.imposter_phone, normalized_phone: set.imposter_normalized_phone } }
             );
         }
+        // Keep the linked profile's display/normalized name in sync on a rename so
+        // search and profile pages don't go stale.
+        if (set.imposter_name && event.profile_id) {
+            await db.collection('cheater_profiles').updateOne(
+                { _id: event.profile_id },
+                { $set: { display_name: set.imposter_name, normalized_name: normalize(set.imposter_name), updated_at: new Date().toISOString() } }
+            );
+        }
         await audit('edit', eventId, req, { fields: Object.keys(set) });
         res.json({ message: '✓ Event updated', fields: Object.keys(set) });
     } catch (err) {
@@ -1013,8 +1343,32 @@ app.patch('/api/admin/events/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// POST /api/admin/change-password — the signed-in admin rotates their own password.
+// Bumps token_version so all of that admin's existing sessions are invalidated.
+app.post('/api/admin/change-password', requireAdmin, async (req, res) => {
+    try {
+        const current = str(req.body && req.body.current_password);
+        const next = str(req.body && req.body.new_password);
+        if (!current || !next) return res.status(400).json({ error: 'Current and new password are required.' });
+        if (next.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+        if (/^admin123$/i.test(next)) return res.status(400).json({ error: 'Choose a stronger password.' });
+        const admin = await db.collection('admin_users').findOne({ _id: new ObjectId(req.admin.sub) });
+        if (!admin || !(await bcrypt.compare(current, admin.password_hash || ''))) {
+            return res.status(401).json({ error: 'Current password is incorrect.' });
+        }
+        await db.collection('admin_users').updateOne(
+            { _id: admin._id },
+            { $set: { password_hash: await bcrypt.hash(next, 10), must_change_password: false }, $inc: { token_version: 1 } }
+        );
+        await audit('change_password', null, req, { target: admin.username });
+        res.json({ message: '✓ Password changed. Please sign in again.' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
 // ---- Admin user management (superuser only) ----
-app.get('/api/admin/admins', requireAdmin, async (req, res) => {
+app.get('/api/admin/admins', requireAdmin, requireSuperuser, async (req, res) => {
     try {
         const rows = await db.collection('admin_users').find({}, { projection: { password_hash: 0 } }).toArray();
         res.json(rows.map((a) => ({ id: a._id, username: a.username, role: a.role || ROLES.ADMIN, created_at: a.created_at })));
@@ -1034,8 +1388,9 @@ app.post('/api/admin/admins', requireAdmin, requireSuperuser, async (req, res) =
             return res.status(409).json({ error: 'That username already exists.' });
         }
         const result = await db.collection('admin_users').insertOne({
-            username, password_hash: await bcrypt.hash(password, 10), role, created_at: new Date().toISOString()
+            username, password_hash: await bcrypt.hash(password, 10), role, token_version: 0, created_at: new Date().toISOString()
         });
+        await audit('admin_create', null, req, { target: username, role });
         res.json({ message: '✓ Admin created', id: result.insertedId });
     } catch (err) {
         res.status(500).json({ error: 'Failed to create admin' });
@@ -1050,6 +1405,7 @@ app.delete('/api/admin/admins/:id', requireAdmin, requireSuperuser, async (req, 
         }
         const result = await db.collection('admin_users').deleteOne({ _id: new ObjectId(req.params.id) });
         if (result.deletedCount === 0) return res.status(404).json({ error: 'Admin not found.' });
+        await audit('admin_delete', null, req, { target_id: req.params.id });
         res.json({ message: '✓ Admin deleted' });
     } catch (err) {
         res.status(500).json({ error: 'Failed to delete admin' });

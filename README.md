@@ -46,17 +46,24 @@ npm run build:css
 npm start              # http://localhost:3000
 ```
 
-Default admin login is seeded on first run: **`admin` / `admin123`** — change it before any
-real deployment.
+On first run an admin is seeded. In **development** (no `ADMIN_PASSWORD` set) it is
+**`admin` / `admin123`** and the admin panel forces you to change it on first login. In
+**production** the app refuses to start unless `ADMIN_PASSWORD` (and `JWT_SECRET`) are set.
+Admins can rotate their own password from the panel (this invalidates their other sessions).
 
 ### Environment variables (`.env`)
 
-| Variable       | Required | Description |
-|----------------|----------|-------------|
-| `MONGODB_URI`  | yes      | MongoDB connection string |
-| `DB_NAME`      | no       | Database name (default `fraud_checker_db`) |
-| `PORT`         | no       | HTTP port (default `3000`) |
-| `JWT_SECRET`   | yes\*    | Secret for signing admin sessions. \*If unset, an ephemeral one is generated and sessions reset on restart. |
+| Variable         | Required | Description |
+|------------------|----------|-------------|
+| `MONGODB_URI`    | yes      | MongoDB connection string |
+| `DB_NAME`        | no       | Database name (default `fraud_checker_db`) |
+| `PORT`           | no       | HTTP port (default `3000`) |
+| `JWT_SECRET`     | prod: yes | Secret for signing admin sessions. In production the app refuses to start if unset; in dev an ephemeral one is generated. Generate with `openssl rand -hex 48`. |
+| `ADMIN_USERNAME` | no       | Username for the seeded first admin (default `admin`). |
+| `ADMIN_PASSWORD` | prod: yes | Password for the seeded first admin. Required in production. |
+| `BASE_URL`       | no       | Canonical public origin for sitemap / OG / canonical URLs (falls back to the request Host in dev). |
+| `NODE_ENV`       | no       | Set to `production` in real deployments (enables hard-fail safety checks). |
+| `SEED_SAMPLE`    | no       | Set to `true` to seed demo data into an empty DB (off by default). |
 
 ## Scripts
 
@@ -71,13 +78,20 @@ real deployment.
 ## API overview
 
 Public:
-- `GET  /api/search?q=&limit=&skip=` — search approved reports
-- `GET  /api/events/:id/details` — one approved report (+ linked profile)
-- `GET  /api/events/:id/picture` — stream imposter photo
-- `GET  /api/events/:id/proofs/:index` — stream a proof file
-- `GET  /api/profiles/:id` — consolidated fraudster profile
-- `POST /api/events` — submit a report (multipart)
-- `GET  /healthz` — liveness probe
+- `GET  /api/search?q=&category=&sort=&limit=&skip=` — search approved reports (matches name, phone, NID, MFS wallet, etc.)
+- `GET  /api/check?phone=&nid=` — quick lookup: report counts, intrinsic number risk, and an aggregate 0-100 risk score
+- `GET  /api/recent` — latest approved reports (browse feed)
+- `GET  /api/stats/public` — public transparency numbers
+- `GET  /api/events/:id/details` — one approved report (+ linked profile + trust/risk)
+- `GET  /api/events/:id/picture` · `/proofs/:index` — stream imposter photo / proof file
+- `GET  /api/profiles/:id` — consolidated fraudster profile (NIDs masked)
+- `POST /api/events` — submit a report (multipart; requires a truthfulness `consent`)
+- `POST /api/events/:id/dispute` — right-of-reply on an approved report
+- `GET  /report/:id` · `/number/:phone` · `/profile/:id` — crawlable share bridges (OG meta + JSON-LD)
+- `GET  /sitemap.xml` · `/healthz` — sitemap / liveness probe
+
+Admin adds `POST /api/admin/change-password` (self-service) and server-side search on the
+event lists (`?q=&scam_type=&min_loss=&sort=evidence`).
 
 Admin (require `Authorization: Bearer <jwt>`):
 - `POST   /api/admin/login`
