@@ -34,13 +34,29 @@
                 <input type="text" id="hp_website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="hidden">
                 <input type="hidden" id="form_loaded_at">
 
-                <!-- Quick-start: paste the scam message and auto-fill -->
-                <div class="border-2 border-dashed border-slate-300 rounded-lg p-5 bg-slate-50">
-                    <label class="block text-sm font-bold text-slate-700 mb-1" data-i18n="submit.paste">⚡ Quick start — paste the scam SMS / message</label>
-                    <p class="text-xs text-slate-500 mb-3" data-i18n="submit.paste_hint">We'll pull out phone numbers, wallet numbers, transaction IDs and amounts for you. You can edit everything before submitting.</p>
-                    <textarea id="paste_box" rows="3" data-i18n-ph="submit.paste_ph" placeholder="Paste the message you received…" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 text-sm"></textarea>
-                    <button type="button" onclick="extractFromPaste()" class="mt-3 bg-slate-800 text-white px-5 py-2 rounded-lg font-semibold hover:bg-slate-900 transition text-sm" data-i18n="submit.paste_btn">Extract details</button>
-                    <p id="paste_result" class="text-xs text-emerald-700 mt-2 hidden"></p>
+                <!-- Quick-start: paste your post AND/OR drop screenshots/ID cards; we
+                     read them and auto-fill the fields below. Nothing here replaces a
+                     field — it just fills them in for you to review. -->
+                <div class="border-2 border-dashed border-indigo-300 rounded-lg p-5 bg-indigo-50">
+                    <label class="block text-base font-bold text-indigo-900 mb-1" data-i18n="submit.paste">⚡ Quick start — paste your post or drop screenshots</label>
+                    <p class="text-xs text-slate-600 mb-3" data-i18n="submit.paste_hint">Already posted about it on Facebook? Paste that text, and/or add the scam screenshots and the fraudster's ID card. We'll read them and fill the form for you — you just review and submit. The pictures you add here are also attached as evidence.</p>
+
+                    <textarea id="paste_box" rows="3" data-i18n-ph="submit.paste_ph" placeholder="Paste the message or your social post here…" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
+
+                    <div class="mt-3">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1" data-i18n="submit.quick_images">Screenshots, ID card, or other pictures (we read these)</label>
+                        <input type="file" id="quick_images" accept="image/*" multiple class="block w-full px-3 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        <div id="quick_preview" class="grid grid-cols-3 md:grid-cols-6 gap-2 mt-3"></div>
+                    </div>
+
+                    <div class="mt-3 flex items-center gap-3 flex-wrap">
+                        <button type="button" id="quick_extract_btn" onclick="extractFromPaste()" class="bg-indigo-700 text-white px-5 py-2 rounded-lg font-semibold hover:bg-indigo-800 transition text-sm disabled:opacity-60" data-i18n="submit.paste_btn">Read &amp; fill the form</button>
+                        <span id="quick_spinner" class="hidden text-sm text-slate-600 flex items-center gap-2">
+                            <span class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-indigo-500 border-t-transparent"></span>
+                            <span data-i18n="submit.quick_reading">Reading your pictures… this can take a moment.</span>
+                        </span>
+                    </div>
+                    <p id="paste_result" class="text-sm text-emerald-800 mt-2 hidden"></p>
                 </div>
 
                 <!-- SECTION 1: IMPOSTER PERSONAL DETAILS -->
@@ -655,31 +671,95 @@
         // Record when the form became ready (used by the server's min-fill-time bot check).
         document.getElementById('form_loaded_at').value = Date.now();
 
-        // ---- Paste-to-extract: pull structured tokens out of a pasted scam message ----
-        function extractFromPaste() {
-            const t = document.getElementById('paste_box').value || '';
-            const res = FC.extractFromText(t);
-            let filled = [];
+        // ---- Quick-start images (OCR source + auto-attached as evidence proof) ----
+        let quickImages = [];
+        document.getElementById('quick_images').addEventListener('change', function (e) {
+            Array.from(e.target.files).forEach((f) => { if (quickImages.length < 5 && f.type.startsWith('image/')) quickImages.push(f); });
+            e.target.value = '';
+            renderQuickPreview();
+        });
+        function renderQuickPreview() {
+            const box = document.getElementById('quick_preview');
+            box.innerHTML = '';
+            quickImages.forEach((f, i) => {
+                const url = URL.createObjectURL(f);
+                const d = document.createElement('div');
+                d.className = 'relative';
+                d.innerHTML = '<img src="' + url + '" alt="" class="w-full h-16 object-cover rounded border border-slate-300">'
+                    + '<button type="button" aria-label="remove" class="absolute -top-2 -right-2 bg-red-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold hover:bg-red-700">✕</button>';
+                d.querySelector('button').addEventListener('click', () => { quickImages.splice(i, 1); renderQuickPreview(); });
+                box.appendChild(d);
+            });
+        }
+
+        // ---- Quick-start: read pasted text + OCR'd images and pre-fill the form ----
+        async function extractFromPaste() {
+            const btn = document.getElementById('quick_extract_btn');
+            const spin = document.getElementById('quick_spinner');
+            const pasteText = (document.getElementById('paste_box').value || '').trim();
+            let ocrText = '';
+
+            if (quickImages.length) {
+                btn.disabled = true; spin.classList.remove('hidden');
+                try {
+                    const fd = new FormData();
+                    fd.append('text', pasteText);
+                    quickImages.forEach((f) => fd.append('images', f));
+                    const r = await fetch('/api/extract', { method: 'POST', body: fd });
+                    const d = await r.json().catch(() => ({}));
+                    if (r.ok) { ocrText = d.ocr_text || ''; }
+                    else { FC.toast((d && d.error) || FC.t('submit.quick_fail'), 'error'); }
+                } catch (e) {
+                    FC.toast(FC.t('submit.quick_fail'), 'error');
+                } finally { btn.disabled = false; spin.classList.add('hidden'); }
+            }
+
+            const combined = (pasteText + '\n' + ocrText).trim();
+            const res = FC.extractFromText(combined);
+            const filled = [];
+            fillFromExtraction(res, filled);
+
+            // Seed the description from the human-written paste text first (cleaner
+            // than OCR noise), falling back to OCR text.
+            const descSource = pasteText || ocrText.trim();
+            const desc = document.getElementById('description');
+            if (!desc.value.trim() && descSource) { desc.value = descSource.slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
+
+            // Attach the quick-start pictures as evidence proofs.
+            if (quickImages.length) {
+                const n = quickImages.length;
+                quickImages.forEach((f) => { if (uploadedProofs.length < 20) uploadedProofs.push({ file: f }); });
+                filled.push(FC.t('submit.paste.proofs', { n: n }));
+                quickImages = []; renderQuickPreview();
+                renderProofPreviews();
+            }
+
+            const out = document.getElementById('paste_result');
+            out.textContent = filled.length ? FC.t('submit.paste.done', { items: filled.join(', ') }) : FC.t('submit.paste.none');
+            out.classList.remove('hidden');
+            updateStrength();
+        }
+
+        // Fill imposter phone / alt phones / wallet / TrxID / NID / amount from the
+        // extracted tokens (only into fields the user has left empty).
+        function fillFromExtraction(res, filled) {
             if (res.phones.length) {
                 const phoneEl = document.getElementById('imposter_phone');
                 if (!phoneEl.value) { phoneEl.value = res.phones[0]; filled.push(FC.t('submit.paste.phone')); }
-                // Extra numbers become alternative phones.
                 res.phones.slice(1).forEach((p) => {
                     const inputs = document.querySelectorAll('.alt_phone_input');
                     let placed = false;
                     inputs.forEach((i) => { if (!placed && !i.value) { i.value = p; placed = true; } });
                     if (!placed && document.querySelectorAll('.alt_phone_input').length < 5) { addAltPhoneField(); const all = document.querySelectorAll('.alt_phone_input'); all[all.length - 1].value = p; }
                 });
+                if (!document.getElementById('mfs_wallet').value) document.getElementById('mfs_wallet').value = res.phones[0];
             }
             if (res.trxids.length && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = res.trxids[0]; filled.push(FC.t('submit.paste.trxid')); }
-            if (res.phones.length && !document.getElementById('mfs_wallet').value) { document.getElementById('mfs_wallet').value = res.phones[0]; }
-            // Seed the description with the raw text if empty.
-            const desc = document.getElementById('description');
-            if (!desc.value.trim()) { desc.value = t.slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
-            const out = document.getElementById('paste_result');
-            out.textContent = filled.length ? FC.t('submit.paste.done', { items: filled.join(', ') }) : FC.t('submit.paste.none');
-            out.classList.remove('hidden');
-            updateStrength();
+            if (res.nids && res.nids.length && !document.getElementById('imposter_nid').value) { document.getElementById('imposter_nid').value = res.nids[0]; filled.push(FC.t('submit.paste.nid')); }
+            if (res.amounts && res.amounts.length && !document.getElementById('loss_amount').value) {
+                const n = parseInt(String(res.amounts[0]).replace(/[^\d]/g, ''), 10);
+                if (n > 0) { document.getElementById('loss_amount').value = n; filled.push(FC.t('submit.paste.amount')); }
+            }
         }
 
         // ---- Report-strength meter (reporter-facing) ----

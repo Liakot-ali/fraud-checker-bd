@@ -12,7 +12,7 @@ const {
     STATUS, VISIBILITY, ROLES,
     ALLOWED_IMAGE, ALLOWED_PROOF, MAX_PROOFS,
     normalize, str, capField, escapeRegex, validPhone, normalizeWallet, maskNid,
-    phoneRisk, scoreEvidence, riskScore, sniffFamily, typeMatches,
+    phoneRisk, scoreEvidence, riskScore, extractFromText, sniffFamily, typeMatches,
     paging, sanitizeEvent, validateSubmission
 } = require('./lib/util');
 
@@ -199,6 +199,35 @@ async function deleteFiles(records) {
     for (const r of records || []) {
         if (r && r.file_id) { try { await bucket.delete(r.file_id); } catch (e) { /* non-fatal */ } }
     }
+}
+
+// OCR a set of image buffers into plain text (used by the quick-start extractor so
+// victims can drop screenshots / ID cards and have fields auto-filled). tesseract.js
+// is loaded lazily (never at boot) and a fresh worker is created per request and
+// terminated afterwards to bound memory. Failures are non-fatal — the caller falls
+// back to whatever text was recognised. Language set is tunable via OCR_LANGS.
+async function ocrImages(buffers) {
+    if (!buffers || !buffers.length) return '';
+    let createWorker;
+    try { ({ createWorker } = require('tesseract.js')); } catch (e) { log('error', 'tesseract.js unavailable', { err: e.message }); return ''; }
+    const langs = process.env.OCR_LANGS || 'eng';
+    // Cache the downloaded language model in the OS temp dir (not the app dir).
+    const cachePath = process.env.OCR_CACHE_PATH || path.join(require('os').tmpdir(), 'fcbd-ocr');
+    try { require('fs').mkdirSync(cachePath, { recursive: true }); } catch (e) { /* ignore */ }
+    let worker = null;
+    let text = '';
+    try {
+        worker = await createWorker(langs, 1, { cachePath });
+        for (const buf of buffers) {
+            try { const { data } = await worker.recognize(buf); text += '\n' + (data.text || ''); }
+            catch (e) { log('error', 'ocr recognize failed', { err: e.message }); }
+        }
+    } catch (e) {
+        log('error', 'ocr worker failed', { err: e.message });
+    } finally {
+        if (worker) { try { await worker.terminate(); } catch (e) { /* ignore */ } }
+    }
+    return text;
 }
 
 // Stream a media record (GridFS file_id OR legacy inline base64) to the response.
@@ -490,6 +519,11 @@ const readLimiter = rateLimit({
     windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false,
     message: { error: 'Too many requests. Please slow down and try again shortly.' }
 });
+// OCR is CPU-heavy, so the quick-start extractor gets a tighter limiter.
+const ocrLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 12, standardHeaders: true, legacyHeaders: false,
+    message: { error: 'Too many extraction requests. Please wait a moment and try again.' }
+});
 
 // ===================== PUBLIC API =====================
 
@@ -570,6 +604,37 @@ app.get('/api/recent', readLimiter, async (req, res) => {
         res.json(rows.map((e) => sanitizeEvent(e)));
     } catch (err) {
         res.status(500).json({ error: 'Failed to load recent reports' });
+    }
+});
+
+// POST /api/extract — quick-start helper. Accepts pasted `text` and/or uploaded
+// `images` (screenshots, ID cards); OCRs the images, merges with the text, and
+// returns extracted fields (phones, wallets, TrxIDs, amounts, URLs, NIDs) plus the
+// raw OCR text so the client can pre-fill the report form. The images themselves
+// are NOT stored here — the client re-attaches them as proof on final submission.
+app.post('/api/extract', ocrLimiter, async (req, res) => {
+    try {
+        let files = [];
+        if (req.files && req.files.images) files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+        // Only OCR genuine images (magic-byte checked), capped to bound CPU/memory.
+        const buffers = [];
+        for (const f of files.slice(0, 5)) {
+            if (f.truncated) continue;
+            if (ALLOWED_IMAGE.includes(f.mimetype) && typeMatches(f.mimetype, sniffFamily(f.data))) buffers.push(f.data);
+        }
+        const pasted = str(req.body && req.body.text).slice(0, 5000);
+        const ocrText = buffers.length ? await ocrImages(buffers) : '';
+        const combined = (pasted + '\n' + ocrText).trim();
+        const fields = extractFromText(combined);
+        res.json({
+            ocr_used: buffers.length > 0,
+            images_read: buffers.length,
+            ocr_text: ocrText.trim().slice(0, 4000),
+            ...fields
+        });
+    } catch (err) {
+        log('error', 'extract failed', { err: err.message });
+        res.status(500).json({ error: 'Could not read the images. Please fill the form manually.' });
     }
 });
 

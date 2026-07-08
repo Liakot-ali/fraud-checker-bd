@@ -170,6 +170,13 @@ test('extractFromText pulls phones, trxids, urls and amounts', () => {
     assert.ok(out.amounts.length >= 1);
 });
 
+test('extractFromText picks up NID numbers but not phones', () => {
+    const out = extractFromText('NID 1990123456789 phone 01711111111 smartcard 1234567890');
+    assert.ok(out.nids.includes('1990123456789'), '13-digit NID found');
+    assert.ok(out.nids.includes('1234567890'), '10-digit smart-card NID found');
+    assert.ok(!out.nids.includes('01711111111'), '11-digit phone is not treated as an NID');
+});
+
 test('sniffFamily + typeMatches detect and gate spoofed uploads', () => {
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     const pdf = Buffer.from('%PDF-1.7\n', 'ascii');

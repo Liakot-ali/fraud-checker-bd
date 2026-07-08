@@ -129,7 +129,9 @@
     var urls = uniq(t.match(/https?:\/\/[^\s<>"')]+/gi) || []);
     var amounts = uniq((t.match(/(?:৳|Tk\.?|BDT|taka)\s*[\d,]+(?:\.\d+)?/gi) || [])
       .concat(t.match(/[\d,]+(?:\.\d+)?\s*(?:৳|tk|taka)/gi) || []));
-    return { phones: phones, trxids: trxids, urls: urls, amounts: amounts };
+    var nids = uniq((t.match(/\b\d{10}\b|\b\d{13}\b|\b\d{17}\b/g) || [])
+      .filter(function (n) { return !/^8801\d/.test(n) && !/^01\d{9}$/.test(n); }));
+    return { phones: phones, trxids: trxids, urls: urls, amounts: amounts, nids: nids };
   }
 
   // A coloured risk badge (from /api/check `risk` { score, band }).
