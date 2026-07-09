@@ -49,6 +49,11 @@
                         <div id="quick_preview" class="grid grid-cols-3 md:grid-cols-6 gap-2 mt-3"></div>
                     </div>
 
+                    <label class="flex items-start gap-2 mt-3 text-xs text-slate-600 bg-white/70 border border-indigo-200 rounded-lg p-3">
+                        <input type="checkbox" id="ai_consent" class="mt-0.5 w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                        <span data-i18n="submit.ai_consent">✨ Use AI for more accurate reading. I understand my pasted text and pictures will be sent to Google Gemini to help fill this form. (Without this, basic on-device reading is used.)</span>
+                    </label>
+
                     <div class="mt-3 flex items-center gap-3 flex-wrap">
                         <button type="button" id="quick_extract_btn" onclick="extractFromPaste()" class="bg-indigo-700 text-white px-5 py-2 rounded-lg font-semibold hover:bg-indigo-800 transition text-sm disabled:opacity-60" data-i18n="submit.paste_btn">Read &amp; fill the form</button>
                         <span id="quick_spinner" class="hidden text-sm text-slate-600 flex items-center gap-2">
@@ -702,14 +707,16 @@
             const spin = document.getElementById('quick_spinner');
             const pasteText = (document.getElementById('paste_box').value || '').trim();
             const hasImages = quickImages.length > 0;
+            const useAi = document.getElementById('ai_consent').checked;
             if (!pasteText && !hasImages) { FC.toast(FC.t('submit.quick_empty'), 'info'); return; }
 
             btn.disabled = true;
-            if (hasImages) spin.classList.remove('hidden');
+            if (hasImages || useAi) spin.classList.remove('hidden');
             let data = null;
             try {
                 const fd = new FormData();
                 fd.append('text', pasteText);
+                fd.append('ai_consent', useAi ? 'true' : '');
                 quickImages.forEach((f) => fd.append('images', f));
                 const r = await fetch('/api/extract', { method: 'POST', body: fd });
                 data = await r.json().catch(() => null);
@@ -719,27 +726,33 @@
             } finally { btn.disabled = false; spin.classList.add('hidden'); }
             if (!data) return;
 
-            const merge = (a, b) => { const s = []; (a || []).concat(b || []).forEach((x) => { if (x && s.indexOf(x) < 0) s.push(x); }); return s; };
-            const p = data.paste || {}, im = data.image || {};
             const filled = [];
-
-            // Phones (text + documents) — fill ALL of them.
-            fillPhones(merge(p.phones, im.phones), filled);
-            // Name / address / NID (text + documents) — keep BOTH values on conflict.
-            fillJoined('imposter_name', merge(p.names, im.names), 120, filled, FC.t('submit.paste.name'));
-            fillJoined('imposter_address', merge(p.addresses, im.addresses), 300, filled, FC.t('submit.paste.address'));
-            fillJoined('imposter_nid', merge(p.nids, im.nids), 40, filled, FC.t('submit.paste.nid'));
-            // Other identifiers (TrxID / amount).
-            const trx = merge(p.trxids, im.trxids);
-            if (trx.length && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = trx[0]; filled.push(FC.t('submit.paste.trxid')); }
-            const amts = merge(p.amounts, im.amounts);
-            if (amts.length && !document.getElementById('loss_amount').value) {
-                const n = parseInt(String(amts[0]).replace(/[^\d]/g, ''), 10);
-                if (n > 0) { document.getElementById('loss_amount').value = n; filled.push(FC.t('submit.paste.amount')); }
+            const usedAi = data.source === 'ai';
+            if (usedAi) {
+                fillFromAi(data.fields || {}, filled);
+                // If the user asked for AI but the server fell back, tell them.
+            } else {
+                if (useAi) FC.toast(FC.t('submit.ai_busy'), 'info');
+                const merge = (a, b) => { const s = []; (a || []).concat(b || []).forEach((x) => { if (x && s.indexOf(x) < 0) s.push(x); }); return s; };
+                const p = data.paste || {}, im = data.image || {};
+                // Phones (text + documents) — fill ALL of them.
+                fillPhones(merge(p.phones, im.phones), filled);
+                // Name / address / NID (text + documents) — keep BOTH values on conflict.
+                fillJoined('imposter_name', merge(p.names, im.names), 120, filled, FC.t('submit.paste.name'));
+                fillJoined('imposter_address', merge(p.addresses, im.addresses), 300, filled, FC.t('submit.paste.address'));
+                fillJoined('imposter_nid', merge(p.nids, im.nids), 40, filled, FC.t('submit.paste.nid'));
+                // Other identifiers (TrxID / amount).
+                const trx = merge(p.trxids, im.trxids);
+                if (trx.length && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = trx[0]; filled.push(FC.t('submit.paste.trxid')); }
+                const amts = merge(p.amounts, im.amounts);
+                if (amts.length && !document.getElementById('loss_amount').value) {
+                    const n = parseInt(String(amts[0]).replace(/[^\d]/g, ''), 10);
+                    if (n > 0) { document.getElementById('loss_amount').value = n; filled.push(FC.t('submit.paste.amount')); }
+                }
+                // Description — in the OCR fallback, ONLY from the pasted text (never image OCR).
+                const desc = document.getElementById('description');
+                if (!desc.value.trim() && pasteText) { desc.value = pasteText.slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
             }
-            // Description — ONLY from the pasted text (never image OCR).
-            const desc = document.getElementById('description');
-            if (!desc.value.trim() && pasteText) { desc.value = pasteText.slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
 
             // Imposter photo — crop a NID face, or use a submitted human photo.
             try { if (await fillImposterImage(data.images || [])) filled.push(FC.t('submit.paste.image')); } catch (e) { /* best-effort */ }
@@ -753,9 +766,52 @@
             }
 
             const out = document.getElementById('paste_result');
-            out.textContent = filled.length ? FC.t('submit.paste.done', { items: filled.join(', ') }) : FC.t('submit.paste.none');
+            const doneKey = usedAi ? 'submit.paste.ai_done' : 'submit.paste.done';
+            out.textContent = filled.length ? FC.t(doneKey, { items: filled.join(', ') }) : FC.t('submit.paste.none');
             out.classList.remove('hidden');
             updateStrength();
+        }
+
+        // Fill from the AI's precise, already-merged fields (empty fields only).
+        function fillFromAi(f, filled) {
+            fillPhones(f.phones || [], filled);
+            fillJoined('imposter_name', f.imposter_name ? [f.imposter_name] : [], 120, filled, FC.t('submit.paste.name'));
+            fillJoined('imposter_address', f.address ? [f.address] : [], 300, filled, FC.t('submit.paste.address'));
+            fillJoined('imposter_nid', f.nid ? [f.nid] : [], 40, filled, FC.t('submit.paste.nid'));
+            fillJoined('social_media_account', f.social_media ? [f.social_media] : [], 300, filled, FC.t('submit.paste.social'));
+            if (f.mfs_wallet && !document.getElementById('mfs_wallet').value) document.getElementById('mfs_wallet').value = f.mfs_wallet;
+            if (f.mfs_trxid && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = f.mfs_trxid; filled.push(FC.t('submit.paste.trxid')); }
+            if (f.mfs_provider) setSelectValue('mfs_provider', f.mfs_provider);
+            if (f.loss_amount && !document.getElementById('loss_amount').value) { document.getElementById('loss_amount').value = f.loss_amount; filled.push(FC.t('submit.paste.amount')); }
+            if (f.scam_type) setSelectOrOther('scam_type', 'scam_type_other', f.scam_type, filled, FC.t('submit.paste.scamtype'));
+            if (f.loss_item) setSelectOrOther('loss_item', 'loss_item_other', f.loss_item, filled, null);
+            const desc = document.getElementById('description');
+            if (f.description && !desc.value.trim()) { desc.value = String(f.description).slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
+        }
+
+        // Set a plain <select> to a value if it matches an option (empty selects only).
+        function setSelectValue(id, value) {
+            const sel = document.getElementById(id);
+            if (!sel || sel.value) return;
+            const v = String(value).trim().toLowerCase();
+            Array.from(sel.options).forEach((o) => { if (o.value && o.value.toLowerCase() === v) sel.value = o.value; });
+        }
+        // Set a <select> that has an "Other" free-text companion: match an option, or
+        // choose "Other" and fill the companion input.
+        function setSelectOrOther(selectId, otherId, value, filled, label) {
+            const sel = document.getElementById(selectId);
+            if (!sel || sel.value) return;
+            const v = String(value).trim(); if (!v) return;
+            const lv = v.toLowerCase();
+            let matched = null;
+            Array.from(sel.options).forEach((o) => { if (o.value && o.value.toLowerCase() === lv) matched = o.value; });
+            if (!matched) Array.from(sel.options).forEach((o) => { if (o.value && o.value !== 'Other' && (o.value.toLowerCase().includes(lv) || lv.includes(o.value.toLowerCase()))) matched = matched || o.value; });
+            if (matched) { sel.value = matched; sel.dispatchEvent(new Event('change')); }
+            else if (Array.from(sel.options).some((o) => o.value === 'Other')) {
+                sel.value = 'Other'; sel.dispatchEvent(new Event('change'));
+                const other = document.getElementById(otherId); if (other) other.value = v.slice(0, 120);
+            }
+            if (label) filled.push(label);
         }
 
         // Place every extracted phone: the first empty slot becomes the primary, the

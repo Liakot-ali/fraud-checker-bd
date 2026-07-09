@@ -15,6 +15,7 @@ const {
     phoneRisk, scoreEvidence, riskScore, extractFromText, extractPerson, sniffFamily, typeMatches,
     paging, sanitizeEvent, validateSubmission
 } = require('./lib/util');
+const { aiExtract } = require('./lib/ai');
 
 // Minimal structured (JSON-line) logger — no sensitive payloads, no stack traces
 // leaked to clients (those only ever get a generic message).
@@ -618,9 +619,25 @@ app.post('/api/extract', ocrLimiter, async (req, res) => {
     try {
         let files = [];
         if (req.files && req.files.images) files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-        // Keep each image's ORIGINAL client index; only OCR genuine images.
+        // Keep each image's ORIGINAL client index; only accept genuine images.
         const valid = files.slice(0, 5).map((f, idx) => ({ f, idx }))
             .filter(({ f }) => !f.truncated && ALLOWED_IMAGE.includes(f.mimetype) && typeMatches(f.mimetype, sniffFamily(f.data)));
+        const pasted = str(req.body && req.body.text).slice(0, 5000);
+
+        // AI path (opt-in + key configured): more precise multimodal extraction and
+        // an AI-written description. Any failure falls through to OCR below.
+        if (str(req.body && req.body.ai_consent) === 'true' && process.env.GEMINI_API_KEY) {
+            try {
+                const ai = await aiExtract({ text: pasted, images: valid.map((v) => ({ data: v.f.data, mimetype: v.f.mimetype })) });
+                if (ai) {
+                    // Remap AI's order-based image indices back to the client's indices.
+                    const images = (ai.images || []).map((im) => ({ ...im, index: valid[im.index] ? valid[im.index].idx : im.index }));
+                    return res.json({ source: 'ai', fields: ai.fields, images });
+                }
+            } catch (e) { log('error', 'ai extract failed', { err: e.message }); }
+        }
+
+        // OCR + regex fallback (works with no key / no consent / AI failure).
         const texts = await ocrImages(valid.map((v) => v.f.data));
         let ocrCombined = '';
         const images = valid.map((v, k) => {
@@ -633,12 +650,11 @@ app.post('/api/extract', ocrLimiter, async (req, res) => {
                 extractFromText(text).nids.length > 0 || compact.length > 40;
             return { index: v.idx, is_document: isDoc, is_photo: compact.length < 15 };
         });
-        const pasted = str(req.body && req.body.text).slice(0, 5000);
         // Return the two sources SEPARATELY so the client can apply the rules:
         // description only from `paste`, name/phone/address/NID from both.
         const paste = { ...extractFromText(pasted), ...extractPerson(pasted) };
         const image = { ...extractFromText(ocrCombined), ...extractPerson(ocrCombined) };
-        res.json({ ocr_used: valid.length > 0, images_read: valid.length, images, paste, image });
+        res.json({ source: 'ocr', ocr_used: valid.length > 0, images_read: valid.length, images, paste, image });
     } catch (err) {
         log('error', 'extract failed', { err: err.message });
         res.status(500).json({ error: 'Could not read the images. Please fill the form manually.' });

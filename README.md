@@ -64,6 +64,15 @@ Admins can rotate their own password from the panel (this invalidates their othe
 | `BASE_URL`       | no       | Canonical public origin for sitemap / OG / canonical URLs (falls back to the request Host in dev). |
 | `NODE_ENV`       | no       | Set to `production` in real deployments (enables hard-fail safety checks). |
 | `SEED_SAMPLE`    | no       | Set to `true` to seed demo data into an empty DB (off by default). |
+| `GEMINI_API_KEY` | no       | Enables **AI-assisted quick-start** extraction via Google Gemini (free key from [Google AI Studio](https://aistudio.google.com/apikey)). If unset, the quick-start uses local OCR only. |
+| `GEMINI_MODEL`   | no       | Gemini model (default `gemini-2.5-flash`). |
+
+**AI-assisted quick-start:** when `GEMINI_API_KEY` is set *and* the reporter ticks the
+"Use AI" box on the report form, the pasted text + uploaded documents are sent to Google Gemini
+(server-side; the key never reaches the browser) for more accurate field extraction and an
+AI-written factual description. It is opt-in per submission and always falls back to the local
+Tesseract OCR + regex pipeline when the key is unset, the reporter declines, or the call fails.
+Note the Gemini free tier may use submitted data to improve Google's models — disclosed on the form.
 
 ## Scripts
 
