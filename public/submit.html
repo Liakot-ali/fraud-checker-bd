@@ -692,46 +692,64 @@
             });
         }
 
-        // ---- Quick-start: read pasted text + OCR'd images and pre-fill the form ----
+        // ---- Quick-start: read pasted text + OCR'd documents and pre-fill fields ----
+        // Rules: the fraud DESCRIPTION comes ONLY from the pasted text; name / phone /
+        // address / NID come from BOTH the text and the documents, and when the two
+        // sources disagree we keep BOTH values; the imposter photo is a cropped NID
+        // face or a submitted human photo.
         async function extractFromPaste() {
             const btn = document.getElementById('quick_extract_btn');
             const spin = document.getElementById('quick_spinner');
             const pasteText = (document.getElementById('paste_box').value || '').trim();
-            let ocrText = '';
+            const hasImages = quickImages.length > 0;
+            if (!pasteText && !hasImages) { FC.toast(FC.t('submit.quick_empty'), 'info'); return; }
 
-            if (quickImages.length) {
-                btn.disabled = true; spin.classList.remove('hidden');
-                try {
-                    const fd = new FormData();
-                    fd.append('text', pasteText);
-                    quickImages.forEach((f) => fd.append('images', f));
-                    const r = await fetch('/api/extract', { method: 'POST', body: fd });
-                    const d = await r.json().catch(() => ({}));
-                    if (r.ok) { ocrText = d.ocr_text || ''; }
-                    else { FC.toast((d && d.error) || FC.t('submit.quick_fail'), 'error'); }
-                } catch (e) {
-                    FC.toast(FC.t('submit.quick_fail'), 'error');
-                } finally { btn.disabled = false; spin.classList.add('hidden'); }
-            }
+            btn.disabled = true;
+            if (hasImages) spin.classList.remove('hidden');
+            let data = null;
+            try {
+                const fd = new FormData();
+                fd.append('text', pasteText);
+                quickImages.forEach((f) => fd.append('images', f));
+                const r = await fetch('/api/extract', { method: 'POST', body: fd });
+                data = await r.json().catch(() => null);
+                if (!r.ok) { FC.toast((data && data.error) || FC.t('submit.quick_fail'), 'error'); data = null; }
+            } catch (e) {
+                FC.toast(FC.t('submit.quick_fail'), 'error');
+            } finally { btn.disabled = false; spin.classList.add('hidden'); }
+            if (!data) return;
 
-            const combined = (pasteText + '\n' + ocrText).trim();
-            const res = FC.extractFromText(combined);
+            const merge = (a, b) => { const s = []; (a || []).concat(b || []).forEach((x) => { if (x && s.indexOf(x) < 0) s.push(x); }); return s; };
+            const p = data.paste || {}, im = data.image || {};
             const filled = [];
-            fillFromExtraction(res, filled);
 
-            // Seed the description from the human-written paste text first (cleaner
-            // than OCR noise), falling back to OCR text.
-            const descSource = pasteText || ocrText.trim();
+            // Phones (text + documents) — fill ALL of them.
+            fillPhones(merge(p.phones, im.phones), filled);
+            // Name / address / NID (text + documents) — keep BOTH values on conflict.
+            fillJoined('imposter_name', merge(p.names, im.names), 120, filled, FC.t('submit.paste.name'));
+            fillJoined('imposter_address', merge(p.addresses, im.addresses), 300, filled, FC.t('submit.paste.address'));
+            fillJoined('imposter_nid', merge(p.nids, im.nids), 40, filled, FC.t('submit.paste.nid'));
+            // Other identifiers (TrxID / amount).
+            const trx = merge(p.trxids, im.trxids);
+            if (trx.length && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = trx[0]; filled.push(FC.t('submit.paste.trxid')); }
+            const amts = merge(p.amounts, im.amounts);
+            if (amts.length && !document.getElementById('loss_amount').value) {
+                const n = parseInt(String(amts[0]).replace(/[^\d]/g, ''), 10);
+                if (n > 0) { document.getElementById('loss_amount').value = n; filled.push(FC.t('submit.paste.amount')); }
+            }
+            // Description — ONLY from the pasted text (never image OCR).
             const desc = document.getElementById('description');
-            if (!desc.value.trim() && descSource) { desc.value = descSource.slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
+            if (!desc.value.trim() && pasteText) { desc.value = pasteText.slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
+
+            // Imposter photo — crop a NID face, or use a submitted human photo.
+            try { if (await fillImposterImage(data.images || [])) filled.push(FC.t('submit.paste.image')); } catch (e) { /* best-effort */ }
 
             // Attach the quick-start pictures as evidence proofs.
-            if (quickImages.length) {
+            if (hasImages) {
                 const n = quickImages.length;
                 quickImages.forEach((f) => { if (uploadedProofs.length < 20) uploadedProofs.push({ file: f }); });
                 filled.push(FC.t('submit.paste.proofs', { n: n }));
-                quickImages = []; renderQuickPreview();
-                renderProofPreviews();
+                quickImages = []; renderQuickPreview(); renderProofPreviews();
             }
 
             const out = document.getElementById('paste_result');
@@ -740,26 +758,81 @@
             updateStrength();
         }
 
-        // Fill imposter phone / alt phones / wallet / TrxID / NID / amount from the
-        // extracted tokens (only into fields the user has left empty).
-        function fillFromExtraction(res, filled) {
-            if (res.phones.length) {
-                const phoneEl = document.getElementById('imposter_phone');
-                if (!phoneEl.value) { phoneEl.value = res.phones[0]; filled.push(FC.t('submit.paste.phone')); }
-                res.phones.slice(1).forEach((p) => {
-                    const inputs = document.querySelectorAll('.alt_phone_input');
-                    let placed = false;
-                    inputs.forEach((i) => { if (!placed && !i.value) { i.value = p; placed = true; } });
-                    if (!placed && document.querySelectorAll('.alt_phone_input').length < 5) { addAltPhoneField(); const all = document.querySelectorAll('.alt_phone_input'); all[all.length - 1].value = p; }
-                });
-                if (!document.getElementById('mfs_wallet').value) document.getElementById('mfs_wallet').value = res.phones[0];
-            }
-            if (res.trxids.length && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = res.trxids[0]; filled.push(FC.t('submit.paste.trxid')); }
-            if (res.nids && res.nids.length && !document.getElementById('imposter_nid').value) { document.getElementById('imposter_nid').value = res.nids[0]; filled.push(FC.t('submit.paste.nid')); }
-            if (res.amounts && res.amounts.length && !document.getElementById('loss_amount').value) {
-                const n = parseInt(String(res.amounts[0]).replace(/[^\d]/g, ''), 10);
-                if (n > 0) { document.getElementById('loss_amount').value = n; filled.push(FC.t('submit.paste.amount')); }
-            }
+        // Place every extracted phone: the first empty slot becomes the primary, the
+        // rest go into alternative-phone fields (adding fields as needed, up to 5).
+        function fillPhones(phones, filled) {
+            if (!phones.length) return;
+            const primary = document.getElementById('imposter_phone');
+            const queue = phones.slice();
+            if (!primary.value && queue.length) { primary.value = queue.shift(); filled.push(FC.t('submit.paste.phone')); }
+            const existing = () => Array.from(document.querySelectorAll('.alt_phone_input'));
+            const already = new Set([primary.value].concat(existing().map((i) => i.value)).filter(Boolean));
+            let placedAny = false;
+            queue.forEach((ph) => {
+                if (already.has(ph)) return;
+                let placed = false;
+                existing().forEach((i) => { if (!placed && !i.value) { i.value = ph; placed = true; } });
+                if (!placed && existing().length < 5) { addAltPhoneField(); const all = existing(); all[all.length - 1].value = ph; placed = true; }
+                if (placed) { already.add(ph); placedAny = true; }
+            });
+            if (placedAny) filled.push(FC.t('submit.paste.altphones'));
+        }
+
+        // Fill a single field with one or more extracted values; when the sources
+        // conflict (more than one distinct value) keep BOTH, separated by " / ".
+        // Never overwrites a value the user typed themselves.
+        function fillJoined(id, values, max, filled, label) {
+            if (!values.length) return;
+            const el = document.getElementById(id);
+            if (el.value.trim()) return;
+            el.value = values.join(' / ').slice(0, max);
+            filled.push(label);
+        }
+
+        // Choose + set the imposter photo: prefer a submitted human photo (whole
+        // image); otherwise crop the face region of a submitted NID/document.
+        async function fillImposterImage(imagesMeta) {
+            const input = document.getElementById('imposter_picture');
+            if (input.files && input.files.length) return false; // respect a user upload
+            const human = imagesMeta.find((m) => m.is_photo && !m.is_document);
+            const doc = imagesMeta.find((m) => m.is_document);
+            let file = null;
+            if (human && quickImages[human.index]) file = quickImages[human.index];
+            else if (doc && quickImages[doc.index]) file = await cropNidFace(quickImages[doc.index]);
+            if (!file) return false;
+            return setFileInput(input, file);
+        }
+
+        function loadImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = URL.createObjectURL(file);
+            });
+        }
+        // Heuristic crop of the photo on a Bangladeshi NID (left column). Best-effort;
+        // the user can remove it and add another if the crop is off.
+        async function cropNidFace(file) {
+            const img = await loadImage(file);
+            const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+            const sx = Math.round(W * 0.04), sy = Math.round(H * 0.20);
+            const sw = Math.round(W * 0.34), sh = Math.round(H * 0.66);
+            const canvas = document.createElement('canvas');
+            canvas.width = sw; canvas.height = sh;
+            canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+            const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.9));
+            return blob ? new File([blob], 'imposter-from-nid.jpg', { type: 'image/jpeg' }) : null;
+        }
+        // Programmatically set a file input (via DataTransfer) and render its preview.
+        function setFileInput(input, file) {
+            try {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                input.files = dt.files;
+                input.dispatchEvent(new Event('change'));
+                return true;
+            } catch (e) { return false; }
         }
 
         // ---- Report-strength meter (reporter-facing) ----

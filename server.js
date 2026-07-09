@@ -12,7 +12,7 @@ const {
     STATUS, VISIBILITY, ROLES,
     ALLOWED_IMAGE, ALLOWED_PROOF, MAX_PROOFS,
     normalize, str, capField, escapeRegex, validPhone, normalizeWallet, maskNid,
-    phoneRisk, scoreEvidence, riskScore, extractFromText, sniffFamily, typeMatches,
+    phoneRisk, scoreEvidence, riskScore, extractFromText, extractPerson, sniffFamily, typeMatches,
     paging, sanitizeEvent, validateSubmission
 } = require('./lib/util');
 
@@ -206,20 +206,22 @@ async function deleteFiles(records) {
 // is loaded lazily (never at boot) and a fresh worker is created per request and
 // terminated afterwards to bound memory. Failures are non-fatal — the caller falls
 // back to whatever text was recognised. Language set is tunable via OCR_LANGS.
+// Returns an array of recognised text, one entry per input buffer (empty string on
+// failure), so callers can classify/extract per document.
 async function ocrImages(buffers) {
-    if (!buffers || !buffers.length) return '';
+    const out = (buffers || []).map(() => '');
+    if (!out.length) return out;
     let createWorker;
-    try { ({ createWorker } = require('tesseract.js')); } catch (e) { log('error', 'tesseract.js unavailable', { err: e.message }); return ''; }
+    try { ({ createWorker } = require('tesseract.js')); } catch (e) { log('error', 'tesseract.js unavailable', { err: e.message }); return out; }
     const langs = process.env.OCR_LANGS || 'eng';
     // Cache the downloaded language model in the OS temp dir (not the app dir).
     const cachePath = process.env.OCR_CACHE_PATH || path.join(require('os').tmpdir(), 'fcbd-ocr');
     try { require('fs').mkdirSync(cachePath, { recursive: true }); } catch (e) { /* ignore */ }
     let worker = null;
-    let text = '';
     try {
         worker = await createWorker(langs, 1, { cachePath });
-        for (const buf of buffers) {
-            try { const { data } = await worker.recognize(buf); text += '\n' + (data.text || ''); }
+        for (let i = 0; i < buffers.length; i++) {
+            try { const { data } = await worker.recognize(buffers[i]); out[i] = data.text || ''; }
             catch (e) { log('error', 'ocr recognize failed', { err: e.message }); }
         }
     } catch (e) {
@@ -227,7 +229,7 @@ async function ocrImages(buffers) {
     } finally {
         if (worker) { try { await worker.terminate(); } catch (e) { /* ignore */ } }
     }
-    return text;
+    return out;
 }
 
 // Stream a media record (GridFS file_id OR legacy inline base64) to the response.
@@ -616,22 +618,27 @@ app.post('/api/extract', ocrLimiter, async (req, res) => {
     try {
         let files = [];
         if (req.files && req.files.images) files = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
-        // Only OCR genuine images (magic-byte checked), capped to bound CPU/memory.
-        const buffers = [];
-        for (const f of files.slice(0, 5)) {
-            if (f.truncated) continue;
-            if (ALLOWED_IMAGE.includes(f.mimetype) && typeMatches(f.mimetype, sniffFamily(f.data))) buffers.push(f.data);
-        }
-        const pasted = str(req.body && req.body.text).slice(0, 5000);
-        const ocrText = buffers.length ? await ocrImages(buffers) : '';
-        const combined = (pasted + '\n' + ocrText).trim();
-        const fields = extractFromText(combined);
-        res.json({
-            ocr_used: buffers.length > 0,
-            images_read: buffers.length,
-            ocr_text: ocrText.trim().slice(0, 4000),
-            ...fields
+        // Keep each image's ORIGINAL client index; only OCR genuine images.
+        const valid = files.slice(0, 5).map((f, idx) => ({ f, idx }))
+            .filter(({ f }) => !f.truncated && ALLOWED_IMAGE.includes(f.mimetype) && typeMatches(f.mimetype, sniffFamily(f.data)));
+        const texts = await ocrImages(valid.map((v) => v.f.data));
+        let ocrCombined = '';
+        const images = valid.map((v, k) => {
+            const text = texts[k] || '';
+            ocrCombined += '\n' + text;
+            const compact = text.replace(/\s+/g, '');
+            // A document (e.g. NID) has ID markers or substantial text; a plain photo
+            // has almost none — the client uses this to choose the imposter picture.
+            const isDoc = /nid|national\s*id|জাতীয়|পরিচয়|গণপ্রজাতন্ত্রী|government/i.test(text) ||
+                extractFromText(text).nids.length > 0 || compact.length > 40;
+            return { index: v.idx, is_document: isDoc, is_photo: compact.length < 15 };
         });
+        const pasted = str(req.body && req.body.text).slice(0, 5000);
+        // Return the two sources SEPARATELY so the client can apply the rules:
+        // description only from `paste`, name/phone/address/NID from both.
+        const paste = { ...extractFromText(pasted), ...extractPerson(pasted) };
+        const image = { ...extractFromText(ocrCombined), ...extractPerson(ocrCombined) };
+        res.json({ ocr_used: valid.length > 0, images_read: valid.length, images, paste, image });
     } catch (err) {
         log('error', 'extract failed', { err: err.message });
         res.status(500).json({ error: 'Could not read the images. Please fill the form manually.' });

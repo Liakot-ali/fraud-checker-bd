@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const {
     STATUS, VISIBILITY,
     normalize, str, escapeRegex, validPhone, paging, sanitizeEvent, validateSubmission,
-    maskNid, phoneRisk, scoreEvidence, riskScore, extractFromText, sniffFamily, typeMatches,
+    maskNid, phoneRisk, scoreEvidence, riskScore, extractFromText, extractPerson, sniffFamily, typeMatches,
     normalizeWallet, capField
 } = require('../lib/util');
 
@@ -168,6 +168,18 @@ test('extractFromText pulls phones, trxids, urls and amounts', () => {
     assert.ok(out.trxids.includes('AB12CD34EF'));
     assert.ok(out.urls.some((u) => u.includes('scam.example')));
     assert.ok(out.amounts.length >= 1);
+});
+
+test('extractPerson reads labelled name/address (English + Bengali)', () => {
+    const nid = 'Government of the People\'s Republic of Bangladesh\nName: MD RAKIB HASAN\nDate of Birth: 01 Jan 1990\nAddress: House 12, Road 5, Mirpur, Dhaka';
+    const en = extractPerson(nid);
+    assert.ok(en.names.includes('MD RAKIB HASAN'), 'English name label read');
+    assert.ok(en.addresses.some((a) => a.includes('Mirpur')), 'English address label read');
+    const bn = extractPerson('নাম: মোঃ রাকিব\nঠিকানা: মিরপুর, ঢাকা');
+    assert.ok(bn.names.length === 1 && bn.names[0].includes('রাকিব'), 'Bengali name label read');
+    assert.ok(bn.addresses.length === 1, 'Bengali address label read');
+    // no labels -> nothing (best-effort, no false positives)
+    assert.deepStrictEqual(extractPerson('he scammed me on facebook').names, []);
 });
 
 test('extractFromText picks up NID numbers but not phones', () => {
