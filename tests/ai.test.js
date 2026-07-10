@@ -70,3 +70,21 @@ test('sanitize caps description length and bounds image indices', () => {
     assert.strictEqual(out.fields.description.length, 500);
     assert.deepStrictEqual(out.images, [], 'out-of-range image index dropped');
 });
+
+test('sanitize keeps the reporter number and the receiving wallet OUT of the accused phones', () => {
+    const out = sanitize({
+        phones: ['01711111111', '01822222222', '01733333333'],
+        mfs_wallet: '01822222222',      // receiving wallet — must not be an accused phone
+        reporter_phone: '01733333333',  // the victim's own number — must not be an accused phone
+        reporter_name: 'Karim'
+    }, 0);
+    assert.deepStrictEqual(out.fields.phones, ['01711111111'], 'wallet + reporter number scrubbed from phones');
+    assert.strictEqual(out.fields.mfs_wallet, '01822222222', 'wallet routed to the money field');
+    assert.strictEqual(out.fields.reporter_phone, '01733333333', 'reporter number routed to the reporter field');
+    assert.strictEqual(out.fields.reporter_name, 'Karim');
+});
+
+test('sanitize surfaces only valid low_confidence field keys', () => {
+    const out = sanitize({ phones: ['01711111111'], low_confidence: ['imposter_name', 'phones', 'bogus_key', 123] }, 0);
+    assert.deepStrictEqual(out.low_confidence, ['imposter_name', 'phones'], 'unknown/non-string flags dropped');
+});

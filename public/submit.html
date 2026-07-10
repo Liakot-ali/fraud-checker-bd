@@ -61,7 +61,7 @@
                             <span data-i18n="submit.quick_reading">Reading your pictures… this can take a moment.</span>
                         </span>
                     </div>
-                    <p id="paste_result" class="text-sm text-emerald-800 mt-2 hidden"></p>
+                    <div id="paste_result" class="text-sm text-emerald-800 mt-2 hidden"></div>
                 </div>
 
                 <!-- SECTION 1: IMPOSTER PERSONAL DETAILS -->
@@ -702,6 +702,11 @@
         // address / NID come from BOTH the text and the documents, and when the two
         // sources disagree we keep BOTH values; the imposter photo is a cropped NID
         // face or a submitted human photo.
+        // Quick-start auto-fill state (for the "review + undo" UX). We never silently
+        // trust the extractor: filled fields are highlighted for the user to verify,
+        // and the whole fill can be reverted with one click.
+        let qsSnap = null, qsEls = [], qsAddedProofs = 0, qsSetPic = false;
+
         async function extractFromPaste() {
             const btn = document.getElementById('quick_extract_btn');
             const spin = document.getElementById('quick_spinner');
@@ -726,123 +731,200 @@
             } finally { btn.disabled = false; spin.classList.add('hidden'); }
             if (!data) return;
 
-            const filled = [];
+            qsTakeSnapshot();                 // so the whole fill can be undone
+            const results = [];
             const usedAi = data.source === 'ai';
+            const lowSet = new Set(Array.isArray(data.low_confidence) ? data.low_confidence : []);
+
             if (usedAi) {
-                fillFromAi(data.fields || {}, filled);
-                // If the user asked for AI but the server fell back, tell them.
+                fillFromAi(data.fields || {}, results, lowSet);
             } else {
                 if (useAi) FC.toast(FC.t('submit.ai_busy'), 'info');
                 const merge = (a, b) => { const s = []; (a || []).concat(b || []).forEach((x) => { if (x && s.indexOf(x) < 0) s.push(x); }); return s; };
-                const p = data.paste || {}, im = data.image || {};
-                // Phones (text + documents) — fill ALL of them.
-                fillPhones(merge(p.phones, im.phones), filled);
-                // Name / address / NID (text + documents) — keep BOTH values on conflict.
-                fillJoined('imposter_name', merge(p.names, im.names), 120, filled, FC.t('submit.paste.name'));
-                fillJoined('imposter_address', merge(p.addresses, im.addresses), 300, filled, FC.t('submit.paste.address'));
-                fillJoined('imposter_nid', merge(p.nids, im.nids), 40, filled, FC.t('submit.paste.nid'));
-                // Other identifiers (TrxID / amount).
-                const trx = merge(p.trxids, im.trxids);
-                if (trx.length && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = trx[0]; filled.push(FC.t('submit.paste.trxid')); }
+                const p = data.paste || {}, im = data.image || {}, money = data.money || {}, reporter = data.reporter || {};
+                // Keep the reporter's OWN number and the receiving wallet OUT of the
+                // accused's phone list — the core "wrong field" fix.
+                const exclude = new Set([reporter.phone, money.wallet].filter(Boolean));
+                const phones = merge(p.phones, im.phones).filter((x) => !exclude.has(x));
+                fillPhones(phones, results, false);
+                qsFillField('imposter_name', merge(p.names, im.names).join(' / '), 'submit.paste.name', results, false, 120);
+                qsFillField('imposter_address', merge(p.addresses, im.addresses).join(' / '), 'submit.paste.address', results, false, 300);
+                qsFillField('imposter_nid', merge(p.nids, im.nids).join(' / '), 'submit.paste.nid', results, false, 40);
+                // Money trail -> the money fields (never the phone fields).
+                if (money.provider) setSelectValueRec('mfs_provider', money.provider, 'submit.paste.provider', results, false);
+                qsFillField('mfs_wallet', money.wallet, 'submit.paste.wallet', results, false, 40);
+                qsFillField('mfs_trxid', money.trxid || merge(p.trxids, im.trxids)[0], 'submit.paste.trxid', results, false, 40);
                 const amts = merge(p.amounts, im.amounts);
-                if (amts.length && !document.getElementById('loss_amount').value) {
-                    const n = parseInt(String(amts[0]).replace(/[^\d]/g, ''), 10);
-                    if (n > 0) { document.getElementById('loss_amount').value = n; filled.push(FC.t('submit.paste.amount')); }
-                }
-                // Description — in the OCR fallback, ONLY from the pasted text (never image OCR).
-                const desc = document.getElementById('description');
-                if (!desc.value.trim() && pasteText) { desc.value = pasteText.slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
+                if (amts.length) { const n = parseInt(String(amts[0]).replace(/[^\d]/g, ''), 10); if (n > 0) qsFillField('loss_amount', n, 'submit.paste.amount', results, false, 20); }
+                // The reporter's own number -> the reporter field (not the accused).
+                qsFillField('reporter_phone', reporter.phone, 'submit.paste.reporter_phone', results, false, 40);
+                // Description: ONLY from the pasted text (never image OCR).
+                if (pasteText) qsFillField('description', pasteText.slice(0, 500), 'submit.paste.desc', results, false, 500);
             }
 
             // Imposter photo — crop a NID face, or use a submitted human photo.
-            try { if (await fillImposterImage(data.images || [])) filled.push(FC.t('submit.paste.image')); } catch (e) { /* best-effort */ }
+            try { if (await fillImposterImage(data.images || [])) { qsSetPic = true; results.push({ label: FC.t('submit.paste.image'), value: '', low: false }); } } catch (e) { /* best-effort */ }
 
             // Attach the quick-start pictures as evidence proofs.
             if (hasImages) {
                 const n = quickImages.length;
-                quickImages.forEach((f) => { if (uploadedProofs.length < 20) uploadedProofs.push({ file: f }); });
-                filled.push(FC.t('submit.paste.proofs', { n: n }));
+                quickImages.forEach((f) => { if (uploadedProofs.length < 20) { uploadedProofs.push({ file: f }); qsAddedProofs++; } });
+                results.push({ label: FC.t('submit.paste.proofs', { n: n }), value: '', low: false });
                 quickImages = []; renderQuickPreview(); renderProofPreviews();
             }
 
-            const out = document.getElementById('paste_result');
-            const doneKey = usedAi ? 'submit.paste.ai_done' : 'submit.paste.done';
-            out.textContent = filled.length ? FC.t(doneKey, { items: filled.join(', ') }) : FC.t('submit.paste.none');
-            out.classList.remove('hidden');
+            renderQsReview(results, usedAi);
             updateStrength();
         }
 
         // Fill from the AI's precise, already-merged fields (empty fields only).
-        function fillFromAi(f, filled) {
-            fillPhones(f.phones || [], filled);
-            fillJoined('imposter_name', f.imposter_name ? [f.imposter_name] : [], 120, filled, FC.t('submit.paste.name'));
-            fillJoined('imposter_address', f.address ? [f.address] : [], 300, filled, FC.t('submit.paste.address'));
-            fillJoined('imposter_nid', f.nid ? [f.nid] : [], 40, filled, FC.t('submit.paste.nid'));
-            fillJoined('social_media_account', f.social_media ? [f.social_media] : [], 300, filled, FC.t('submit.paste.social'));
-            if (f.mfs_wallet && !document.getElementById('mfs_wallet').value) document.getElementById('mfs_wallet').value = f.mfs_wallet;
-            if (f.mfs_trxid && !document.getElementById('mfs_trxid').value) { document.getElementById('mfs_trxid').value = f.mfs_trxid; filled.push(FC.t('submit.paste.trxid')); }
-            if (f.mfs_provider) setSelectValue('mfs_provider', f.mfs_provider);
-            if (f.loss_amount && !document.getElementById('loss_amount').value) { document.getElementById('loss_amount').value = f.loss_amount; filled.push(FC.t('submit.paste.amount')); }
-            if (f.scam_type) setSelectOrOther('scam_type', 'scam_type_other', f.scam_type, filled, FC.t('submit.paste.scamtype'));
-            if (f.loss_item) setSelectOrOther('loss_item', 'loss_item_other', f.loss_item, filled, null);
-            const desc = document.getElementById('description');
-            if (f.description && !desc.value.trim()) { desc.value = String(f.description).slice(0, 500); desc.dispatchEvent(new Event('input')); filled.push(FC.t('submit.paste.desc')); }
+        // Fill from the AI's precise, already-separated fields (empty fields only).
+        // low_confidence keys (from the model) mark fields the user should re-check.
+        function fillFromAi(f, results, lowSet) {
+            const low = (k) => lowSet.has(k);
+            fillPhones(f.phones || [], results, low('phones'));
+            qsFillField('imposter_name', f.imposter_name, 'submit.paste.name', results, low('imposter_name'), 120);
+            qsFillField('imposter_address', f.address, 'submit.paste.address', results, low('address'), 300);
+            qsFillField('imposter_nid', f.nid, 'submit.paste.nid', results, low('nid'), 40);
+            qsFillField('social_media_account', f.social_media, 'submit.paste.social', results, low('social_media'), 300);
+            if (f.mfs_provider) setSelectValueRec('mfs_provider', f.mfs_provider, 'submit.paste.provider', results, low('mfs_provider'));
+            qsFillField('mfs_wallet', f.mfs_wallet, 'submit.paste.wallet', results, low('mfs_wallet'), 40);
+            qsFillField('mfs_trxid', f.mfs_trxid, 'submit.paste.trxid', results, low('mfs_trxid'), 40);
+            if (f.loss_amount) qsFillField('loss_amount', f.loss_amount, 'submit.paste.amount', results, low('loss_amount'), 20);
+            if (f.scam_type) setSelectOrOther('scam_type', 'scam_type_other', f.scam_type, results, low('scam_type'), 'submit.paste.scamtype');
+            if (f.loss_item) setSelectOrOther('loss_item', 'loss_item_other', f.loss_item, results, low('loss_item'), null);
+            qsFillField('reporter_name', f.reporter_name, 'submit.paste.reporter_name', results, low('reporter_name'), 120);
+            qsFillField('reporter_phone', f.reporter_phone, 'submit.paste.reporter_phone', results, low('reporter_phone'), 40);
+            qsFillField('description', f.description, 'submit.paste.desc', results, low('description'), 500);
         }
 
         // Set a plain <select> to a value if it matches an option (empty selects only).
-        function setSelectValue(id, value) {
+        function setSelectValueRec(id, value, labelKey, results, low) {
             const sel = document.getElementById(id);
             if (!sel || sel.value) return;
-            const v = String(value).trim().toLowerCase();
-            Array.from(sel.options).forEach((o) => { if (o.value && o.value.toLowerCase() === v) sel.value = o.value; });
+            const v = String(value == null ? '' : value).trim().toLowerCase();
+            if (!v) return;
+            let matched = '';
+            Array.from(sel.options).forEach((o) => { if (o.value && o.value.toLowerCase() === v) matched = o.value; });
+            if (!matched) return;
+            sel.value = matched; sel.dispatchEvent(new Event('change')); qsHighlight(sel, low);
+            if (labelKey) results.push({ label: FC.t(labelKey), value: matched, low: !!low });
         }
         // Set a <select> that has an "Other" free-text companion: match an option, or
         // choose "Other" and fill the companion input.
-        function setSelectOrOther(selectId, otherId, value, filled, label) {
+        function setSelectOrOther(selectId, otherId, value, results, low, labelKey) {
             const sel = document.getElementById(selectId);
             if (!sel || sel.value) return;
-            const v = String(value).trim(); if (!v) return;
+            const v = String(value == null ? '' : value).trim(); if (!v) return;
             const lv = v.toLowerCase();
             let matched = null;
             Array.from(sel.options).forEach((o) => { if (o.value && o.value.toLowerCase() === lv) matched = o.value; });
             if (!matched) Array.from(sel.options).forEach((o) => { if (o.value && o.value !== 'Other' && (o.value.toLowerCase().includes(lv) || lv.includes(o.value.toLowerCase()))) matched = matched || o.value; });
-            if (matched) { sel.value = matched; sel.dispatchEvent(new Event('change')); }
+            let target = null, shown = v;
+            if (matched) { sel.value = matched; sel.dispatchEvent(new Event('change')); target = sel; shown = matched; }
             else if (Array.from(sel.options).some((o) => o.value === 'Other')) {
                 sel.value = 'Other'; sel.dispatchEvent(new Event('change'));
-                const other = document.getElementById(otherId); if (other) other.value = v.slice(0, 120);
+                const other = document.getElementById(otherId); if (other) { other.value = v.slice(0, 120); target = other; shown = other.value; }
             }
-            if (label) filled.push(label);
+            if (target) { qsHighlight(target, low); if (labelKey) results.push({ label: FC.t(labelKey), value: shown, low: !!low }); }
         }
 
         // Place every extracted phone: the first empty slot becomes the primary, the
         // rest go into alternative-phone fields (adding fields as needed, up to 5).
-        function fillPhones(phones, filled) {
-            if (!phones.length) return;
+        function fillPhones(phones, results, low) {
+            if (!phones || !phones.length) return;
             const primary = document.getElementById('imposter_phone');
             const queue = phones.slice();
-            if (!primary.value && queue.length) { primary.value = queue.shift(); filled.push(FC.t('submit.paste.phone')); }
+            if (!primary.value && queue.length) {
+                primary.value = queue.shift(); primary.dispatchEvent(new Event('input')); qsHighlight(primary, low);
+                results.push({ label: FC.t('submit.paste.phone'), value: primary.value, low: !!low });
+            }
             const existing = () => Array.from(document.querySelectorAll('.alt_phone_input'));
             const already = new Set([primary.value].concat(existing().map((i) => i.value)).filter(Boolean));
-            let placedAny = false;
+            const placed = [];
             queue.forEach((ph) => {
                 if (already.has(ph)) return;
-                let placed = false;
-                existing().forEach((i) => { if (!placed && !i.value) { i.value = ph; placed = true; } });
-                if (!placed && existing().length < 5) { addAltPhoneField(); const all = existing(); all[all.length - 1].value = ph; placed = true; }
-                if (placed) { already.add(ph); placedAny = true; }
+                let done = false;
+                existing().forEach((i) => { if (!done && !i.value) { i.value = ph; i.dispatchEvent(new Event('input')); qsHighlight(i, low); done = true; } });
+                if (!done && existing().length < 5) { addAltPhoneField(); const all = existing(); const el = all[all.length - 1]; el.value = ph; el.dispatchEvent(new Event('input')); qsHighlight(el, low); done = true; }
+                if (done) { already.add(ph); placed.push(ph); }
             });
-            if (placedAny) filled.push(FC.t('submit.paste.altphones'));
+            if (placed.length) results.push({ label: FC.t('submit.paste.altphones'), value: placed.join(', '), low: !!low });
         }
 
-        // Fill a single field with one or more extracted values; when the sources
-        // conflict (more than one distinct value) keep BOTH, separated by " / ".
-        // Never overwrites a value the user typed themselves.
-        function fillJoined(id, values, max, filled, label) {
-            if (!values.length) return;
+        // Fill a single field only when empty; highlight it for review and record it.
+        function qsFillField(id, value, labelKey, results, low, max) {
             const el = document.getElementById(id);
-            if (el.value.trim()) return;
-            el.value = values.join(' / ').slice(0, max);
-            filled.push(label);
+            if (!el) return false;
+            const v = (value == null ? '' : String(value)).trim();
+            if (!v || el.value.trim()) return false;   // never overwrite the user's own input
+            el.value = v.slice(0, max || 300);
+            el.dispatchEvent(new Event('input'));
+            qsHighlight(el, low);
+            results.push({ label: FC.t(labelKey), value: el.value, low: !!low });
+            return true;
+        }
+        // Visually flag an auto-filled field (green = filled, amber = please verify).
+        // The flag clears itself the moment the user edits that field.
+        function qsHighlight(el, low) {
+            if (!el) return;
+            el.style.borderColor = low ? '#f59e0b' : '#10b981';
+            el.style.backgroundColor = low ? '#fffbeb' : '#ecfdf5';
+            el.style.boxShadow = low ? '0 0 0 2px rgba(245,158,11,.35)' : '0 0 0 2px rgba(16,185,129,.25)';
+            if (qsEls.indexOf(el) < 0) qsEls.push(el);
+            const clear = () => {
+                el.style.borderColor = ''; el.style.backgroundColor = ''; el.style.boxShadow = '';
+                el.removeEventListener('input', clear); el.removeEventListener('change', clear);
+                const i = qsEls.indexOf(el); if (i >= 0) qsEls.splice(i, 1);
+            };
+            el.addEventListener('input', clear); el.addEventListener('change', clear);
+        }
+        function qsClearHighlights() {
+            qsEls.slice().forEach((el) => { el.style.borderColor = ''; el.style.backgroundColor = ''; el.style.boxShadow = ''; });
+            qsEls = [];
+        }
+        // Snapshot every field the quick-start can touch, so a fill is fully reversible.
+        const QS_FIELDS = ['imposter_name', 'imposter_nickname', 'imposter_phone', 'imposter_nid', 'imposter_address', 'social_media_account', 'scam_type', 'scam_type_other', 'loss_item', 'loss_item_other', 'loss_amount', 'description', 'scam_location', 'gd_number', 'mfs_provider', 'mfs_wallet', 'mfs_trxid', 'bank_account', 'reporter_name', 'reporter_phone'];
+        function qsTakeSnapshot() {
+            qsSnap = {};
+            QS_FIELDS.forEach((id) => { const el = document.getElementById(id); if (el) qsSnap[id] = el.value; });
+            qsSnap.__alt = Array.from(document.querySelectorAll('.alt_phone_input')).map((i) => i.value);
+            qsAddedProofs = 0; qsSetPic = false;
+        }
+        function qsUndo() {
+            if (!qsSnap) return;
+            QS_FIELDS.forEach((id) => { const el = document.getElementById(id); if (el && id in qsSnap) { el.value = qsSnap[id]; el.dispatchEvent(new Event('change')); } });
+            const alts = Array.from(document.querySelectorAll('.alt_phone_input'));
+            alts.forEach((el, i) => { el.value = (qsSnap.__alt && i < qsSnap.__alt.length) ? qsSnap.__alt[i] : ''; });
+            if (qsAddedProofs > 0) { uploadedProofs.splice(uploadedProofs.length - qsAddedProofs, qsAddedProofs); renderProofPreviews(); qsAddedProofs = 0; }
+            if (qsSetPic) { const inp = document.getElementById('imposter_picture'); inp.value = ''; inp.dispatchEvent(new Event('change')); qsSetPic = false; }
+            qsClearHighlights();
+            qsSnap = null;
+            const out = document.getElementById('paste_result'); out.classList.add('hidden'); out.innerHTML = '';
+            updateStrength();
+            FC.toast(FC.t('submit.qs_undone'), 'info');
+        }
+        // Render the "here's what we found" review list + an Undo button.
+        function renderQsReview(results) {
+            const out = document.getElementById('paste_result');
+            out.innerHTML = '';
+            if (!results.length) { out.textContent = FC.t('submit.paste.none'); out.classList.remove('hidden'); return; }
+            const anyLow = results.some((r) => r.low);
+            const rows = results.map((r) => {
+                const badge = r.low
+                    ? '<span style="color:#b45309;font-weight:700">⚠</span> '
+                    : '<span style="color:#059669">✓</span> ';
+                const val = r.value ? ' — <span class="font-mono text-slate-600">' + FC.escapeHtml(String(r.value).slice(0, 60)) + '</span>' : '';
+                return '<li>' + badge + FC.escapeHtml(r.label) + val + '</li>';
+            }).join('');
+            out.innerHTML =
+                '<div class="text-sm">' +
+                '<p class="font-semibold text-slate-800 mb-1">' + FC.escapeHtml(FC.t('submit.qs_review')) + '</p>' +
+                '<ul class="space-y-0.5 text-slate-700">' + rows + '</ul>' +
+                (anyLow ? '<p class="text-amber-700 mt-1">' + FC.escapeHtml(FC.t('submit.qs_lowconf')) + '</p>' : '') +
+                '<button type="button" onclick="qsUndo()" class="mt-2 text-xs font-semibold text-slate-600 underline hover:text-slate-900">' + FC.escapeHtml(FC.t('submit.qs_undo')) + '</button>' +
+                '</div>';
+            out.classList.remove('hidden');
         }
 
         // Choose + set the imposter photo: prefer a submitted human photo (whole

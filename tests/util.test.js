@@ -6,7 +6,7 @@ const {
     STATUS, VISIBILITY,
     normalize, str, escapeRegex, validPhone, paging, sanitizeEvent, validateSubmission,
     maskNid, phoneRisk, scoreEvidence, riskScore, extractFromText, extractPerson, sniffFamily, typeMatches,
-    normalizeWallet, capField
+    normalizeWallet, capField, extractMoneyTrail, extractReporterContact
 } = require('../lib/util');
 
 test('normalize lowercases and strips punctuation/whitespace', () => {
@@ -187,6 +187,33 @@ test('extractFromText picks up NID numbers but not phones', () => {
     assert.ok(out.nids.includes('1990123456789'), '13-digit NID found');
     assert.ok(out.nids.includes('1234567890'), '10-digit smart-card NID found');
     assert.ok(!out.nids.includes('01711111111'), '11-digit phone is not treated as an NID');
+});
+
+test('extractFromText tolerates separators inside a phone number', () => {
+    assert.ok(extractFromText('call 017-1234-5678 now').phones.includes('01712345678'), 'dashes');
+    assert.ok(extractFromText('number 017 1234 5678').phones.includes('01712345678'), 'spaces');
+    assert.ok(extractFromText('intl +880 1712-345678').phones.includes('01712345678'), '+880 form');
+});
+
+test('extractFromText reads Bengali-digit phone numbers', () => {
+    // ০১৭১২৩৪৫৬৭৮ in Bengali numerals -> 01712345678
+    assert.ok(extractFromText('নম্বর ০১৭১২৩৪৫৬৭৮').phones.includes('01712345678'), 'Bengali digits normalised');
+});
+
+test('extractMoneyTrail routes the receiving wallet to the money field', () => {
+    const out = extractMoneyTrail('He asked me to bKash 5000 to 01711111111. TrxID AB12CD34EF');
+    assert.strictEqual(out.provider, 'bKash', 'provider detected');
+    assert.strictEqual(out.wallet, '01711111111', 'wallet on the provider line captured');
+    assert.strictEqual(out.trxid, 'AB12CD34EF', 'trxid captured');
+    // Bengali provider name is recognised too.
+    assert.strictEqual(extractMoneyTrail('নগদ এ ৩০০০ টাকা পাঠিয়েছি').provider, 'Nagad');
+});
+
+test('extractReporterContact finds the reporter own number from first-person cues', () => {
+    assert.strictEqual(extractReporterContact('my number is 01822222222').phone, '01822222222');
+    assert.strictEqual(extractReporterContact('আমার নম্বর 01833333333').phone, '01833333333');
+    // No first-person cue -> nothing (so we never mistake the accused's number for the reporter's).
+    assert.strictEqual(extractReporterContact('the fraudster used 01844444444').phone, '');
 });
 
 test('sniffFamily + typeMatches detect and gate spoofed uploads', () => {

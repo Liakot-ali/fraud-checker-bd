@@ -4,7 +4,8 @@ const js = require('@eslint/js');
 const globals = require('globals');
 
 module.exports = [
-    { ignores: ['node_modules/**', 'public/tailwind.css'] },
+    // fraud-checker-bd/ is a stale nested duplicate (its own git repo); never lint it.
+    { ignores: ['node_modules/**', 'public/tailwind.css', 'fraud-checker-bd/**'] },
     js.configs.recommended,
     {
         // Server-side / tooling (CommonJS, Node globals)

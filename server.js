@@ -13,6 +13,7 @@ const {
     ALLOWED_IMAGE, ALLOWED_PROOF, MAX_PROOFS,
     normalize, str, capField, escapeRegex, validPhone, normalizeWallet, maskNid,
     phoneRisk, scoreEvidence, riskScore, extractFromText, extractPerson, sniffFamily, typeMatches,
+    extractMoneyTrail, extractReporterContact,
     paging, sanitizeEvent, validateSubmission
 } = require('./lib/util');
 const { aiExtract } = require('./lib/ai');
@@ -214,7 +215,9 @@ async function ocrImages(buffers) {
     if (!out.length) return out;
     let createWorker;
     try { ({ createWorker } = require('tesseract.js')); } catch (e) { log('error', 'tesseract.js unavailable', { err: e.message }); return out; }
-    const langs = process.env.OCR_LANGS || 'eng';
+    // Default to English + Bengali so Bangladeshi NID cards and Bengali posts are
+    // read, not garbled. The Bengali model downloads once and is then cached.
+    const langs = process.env.OCR_LANGS || 'eng+ben';
     // Cache the downloaded language model in the OS temp dir (not the app dir).
     const cachePath = process.env.OCR_CACHE_PATH || path.join(require('os').tmpdir(), 'fcbd-ocr');
     try { require('fs').mkdirSync(cachePath, { recursive: true }); } catch (e) { /* ignore */ }
@@ -632,7 +635,7 @@ app.post('/api/extract', ocrLimiter, async (req, res) => {
                 if (ai) {
                     // Remap AI's order-based image indices back to the client's indices.
                     const images = (ai.images || []).map((im) => ({ ...im, index: valid[im.index] ? valid[im.index].idx : im.index }));
-                    return res.json({ source: 'ai', fields: ai.fields, images });
+                    return res.json({ source: 'ai', fields: ai.fields, images, low_confidence: ai.low_confidence || [] });
                 }
             } catch (e) { log('error', 'ai extract failed', { err: e.message }); }
         }
@@ -654,7 +657,13 @@ app.post('/api/extract', ocrLimiter, async (req, res) => {
         // description only from `paste`, name/phone/address/NID from both.
         const paste = { ...extractFromText(pasted), ...extractPerson(pasted) };
         const image = { ...extractFromText(ocrCombined), ...extractPerson(ocrCombined) };
-        res.json({ source: 'ocr', ocr_used: valid.length > 0, images_read: valid.length, images, paste, image });
+        // Money-trail (receiving wallet + provider + trxid) and the reporter's own
+        // number, detected across both sources, so the client can route the wallet to
+        // the money field and keep the reporter's number out of the accused's phones.
+        const combined = pasted + '\n' + ocrCombined;
+        const money = extractMoneyTrail(combined);
+        const reporter = extractReporterContact(pasted); // reporter cues come from the victim's own message
+        res.json({ source: 'ocr', ocr_used: valid.length > 0, images_read: valid.length, images, paste, image, money, reporter });
     } catch (err) {
         log('error', 'extract failed', { err: err.message });
         res.status(500).json({ error: 'Could not read the images. Please fill the form manually.' });
